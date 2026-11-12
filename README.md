@@ -2,7 +2,9 @@
 
 Acompañante conversacional con supervisión clínica para personas mayores que viven solas. **Puente, no reemplazo**: el éxito se mide en menos soledad y más contacto humano, no en minutos de uso.
 
-> **Estado: Sprint 2 (memoria y personaje).** Sobre la base del Sprint 1 (bucle por texto con orquestador, guardián y detector de riesgo; autenticación y roles): memoria estructurada y episódica con extracción verificada por citas, "¿qué recuerdas de mí?", corregir, olvidar, privado, exportar y borrar; perfil del compañero que diseña la persona; costo por conversación y por persona al mes. Sin voz, sin tablet y **sin notificaciones** todavía: no usar con personas reales antes del Sprint 5. Ver `docs/decisiones/`.
+> **Estado: Sprint 3 (voz).** Turno hablado de punta a punta (voz a texto → orquestador con riesgo y guardián → texto a voz por frases) con Google y ElevenLabs intercambiables, latencia medida por etapa, prototipo web de la tablet en `/tablet`, prueba ciega de voces para el co-diseño y benchmark de reconocimiento con métrica de riesgos perdidos.
+>
+> **Sprint 2 (memoria y personaje).** Sobre la base del Sprint 1 (bucle por texto con orquestador, guardián y detector de riesgo; autenticación y roles): memoria estructurada y episódica con extracción verificada por citas, "¿qué recuerdas de mí?", corregir, olvidar, privado, exportar y borrar; perfil del compañero que diseña la persona; costo por conversación y por persona al mes. Sin voz, sin tablet y **sin notificaciones** todavía: no usar con personas reales antes del Sprint 5. Ver `docs/decisiones/`.
 
 ## Estructura
 
@@ -78,6 +80,18 @@ Cada ejecución crea una base de datos nueva, aplica las migraciones y la elimin
 6. Se registran señales (nivel 1+), eventos con acuse requerido (nivel 2 y 3), intervenciones del guardián y uso de modelos (costo).
 7. Al cerrar la sesión (o tras `MEMORIA_MINUTOS_INACTIVIDAD` sin turnos, con `npm run memoria:procesar`) se extrae la memoria: hechos nuevos "por confirmar" con cita literal verificada, correcciones, resumen de la conversación con su embedding y temas pendientes.
 
+## Voz
+
+```bash
+npm run voz:voces -- --acento chilean          # buscar voces chilenas en ElevenLabs
+npm run voz:prueba-ciega                        # genera la página de escucha a ciegas
+npm run voz:resultados -- --clave salida/…/clave.json resultados/*.csv
+npm run voz:benchmark-stt -- --guion > grabaciones/manifiesto.csv
+npm run voz:benchmark-stt -- grabaciones        # WER, latencia y riesgos perdidos
+```
+
+Prototipo de la tablet: abrir `https://<servidor>/tablet` en la tablet y pegar el código del dispositivo. El micrófono del navegador exige HTTPS (o `localhost`). Protocolo de grabaciones: `docs/voz/protocolo-grabaciones.md`.
+
 ## Tareas periódicas
 
 Hasta el planificador del Sprint 8, programar con cron:
@@ -103,3 +117,6 @@ npm run costos:reporte -- 2026-11 # cuando se necesite
 | `GET/PUT /api/mi-perfil-companero` | tablet | La persona diseña su compañero |
 | `GET /api/personas/:id/memoria` | clínicos asignados | Memoria de la persona (auditado) |
 | `GET /api/costos?mes=AAAA-MM` · `GET /api/costos/sesiones/:id` | admin | Costo por persona al mes y por conversación |
+| `GET /api/voces` · `GET /api/voces/:id/muestra` | tablet | Voces ofrecidas y muestra en la velocidad y el trato de la persona |
+| `WS /api/conversacion/ws` → `{"tipo":"audio",…}` | tablet | Turno hablado (ver `voz/turnoVoz.ts`) |
+| `GET /tablet` | — | Prototipo web de la app del acompañante |

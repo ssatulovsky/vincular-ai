@@ -16,6 +16,10 @@ import { rutasConversacion } from './rutas/conversacion.ts';
 import { rutasMemoria } from './rutas/memoria.ts';
 import { rutasCostos } from './rutas/costos.ts';
 import { cargarPrecios, type TablaPrecios } from '../costos/costos.ts';
+import { rutasVoz } from './rutas/voz.ts';
+import { rutasTablet } from './rutas/tablet.ts';
+import { readFileSync } from 'node:fs';
+import { ServiciosVoz, validarCatalogo, type CatalogoVoces } from '@vincular/voz';
 
 export interface Aplicacion {
   config: Config;
@@ -24,6 +28,8 @@ export interface Aplicacion {
   modelos: ModelosPorTarea;
   orquestador: Orquestador;
   precios: TablaPrecios;
+  voz: ServiciosVoz;
+  catalogoVoces: CatalogoVoces;
   /** Extracciones de memoria en curso (para esperar al cerrar y en pruebas). */
   tareasPendientes: Set<Promise<unknown>>;
 }
@@ -57,7 +63,17 @@ export function crearAplicacion(config: Config, bd: Bd = crearPool(config.databa
   const cifrador = new Cifrador(config.claveCifrado);
   const modelos = new ModelosPorTarea(config.ia);
   const orquestador = new Orquestador({ bd, cifrador, modelos, emergencia: config.emergencia, esperaClasificadorMs: config.esperaClasificadorMs });
-  return { config, bd, cifrador, modelos, orquestador, precios: cargarPrecios(config.rutaPrecios), tareasPendientes: new Set() };
+  return {
+    config,
+    bd,
+    cifrador,
+    modelos,
+    orquestador,
+    precios: cargarPrecios(config.rutaPrecios),
+    voz: new ServiciosVoz(config.voz.servicios),
+    catalogoVoces: validarCatalogo(JSON.parse(readFileSync(config.voz.catalogo, 'utf8'))),
+    tareasPendientes: new Set(),
+  };
 }
 
 export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
@@ -68,7 +84,8 @@ export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
   });
 
   await f.register(rateLimit, { global: false });
-  await f.register(websocket, { options: { maxPayload: 16 * 1024 } });
+  // El audio de un turno (hasta ~60 s de opus) viaja en base64 por el WebSocket.
+  await f.register(websocket, { options: { maxPayload: 3 * 1024 * 1024 } });
 
   f.decorateRequest('actor', null);
   f.addHook('onRequest', async (req) => {
@@ -98,6 +115,8 @@ export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
   await f.register(rutasConversacion(app));
   await f.register(rutasMemoria(app));
   await f.register(rutasCostos(app));
+  await f.register(rutasVoz(app));
+  await f.register(rutasTablet(app));
   return f;
 }
 

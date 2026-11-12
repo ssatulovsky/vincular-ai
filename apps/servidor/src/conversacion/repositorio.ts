@@ -2,7 +2,7 @@ import type { Bd, Consultable } from '../db/conexion.ts';
 import { transaccion } from '../db/conexion.ts';
 import type { Cifrador } from '../seguridad/cifrado.ts';
 import { episodiosRecientes, listarHechos, type Episodio, type Hecho } from '../memoria/hechos.ts';
-import { esquemaPerfil, PERFIL_POR_DEFECTO, type PerfilCompanero } from './perfil.ts';
+import { leerPerfil, PERFIL_POR_DEFECTO, type PerfilCompanero } from './perfil.ts';
 
 export interface SesionConversacion {
   id: string;
@@ -65,13 +65,13 @@ export interface ContextoPersona {
 export async function contextoPersona(bd: Consultable, cifrador: Cifrador, personaId: string): Promise<ContextoPersona> {
   const p = await bd.query<{ nombre_cifrado: Buffer }>('SELECT nombre_cifrado FROM persona WHERE id = $1', [personaId]);
   if (!p.rows[0]) throw new Error('Persona inexistente');
-  const perfil = await bd.query('SELECT nombre, personalidad, forma_de_hablar, trato, voz_id, avatar_id, rol_preferente FROM perfil_companero WHERE persona_id = $1', [personaId]);
+  const perfil = await leerPerfil(bd, personaId);
   const [hechos, episodios] = await Promise.all([listarHechos(bd, cifrador, personaId, { incluirPrivados: true }), episodiosRecientes(bd, cifrador, personaId, 3)]);
   // Primer nombre: suficiente para conversar y no expone el nombre completo al proveedor.
   const nombre = cifrador.descifrar(p.rows[0].nombre_cifrado).trim().split(/\s+/)[0] ?? '';
   return {
     nombre,
-    perfil: perfil.rows[0] ? esquemaPerfil.parse(perfil.rows[0]) : PERFIL_POR_DEFECTO,
+    perfil: perfil ?? PERFIL_POR_DEFECTO,
     // Tope para no inflar las instrucciones: lo demás se encuentra con memoria_buscar.
     hechos: hechos.slice(0, 80),
     episodios,

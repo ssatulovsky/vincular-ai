@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E7EEEA">
+<title>Mi compañero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /*
+   * Prototipo de la app del acompañante (Sprint 3) para probar la voz con personas mayores.
+   * Voz primero: un solo botón grande; la pantalla solo acompaña con subtítulos.
+   * Tipografía Atkinson Hyperlegible, diseñada para baja visión.
+   */
+  :root {
+    --fondo: #E7EEEA;
+    --tinta: #12221B;
+    --tinta-suave: #3B5148;
+    --botella: #1E5A47;
+    --botella-claro: #CFE1D8;
+    --mostaza: #E2A41F;
+    --alerta: #A3121A;
+    --blanco: #FFFFFF;
+    --radio-boton: min(62vmin, 440px);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--fondo);
+    color: var(--tinta);
+    font-family: "Atkinson Hyperlegible", "Verdana", sans-serif;
+    font-size: 26px;
+    line-height: 1.4;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .pantalla { min-height: 100%; display: grid; grid-template-rows: auto auto 1fr auto; gap: 18px; padding: 20px 24px max(20px, env(safe-area-inset-bottom)); max-width: 1100px; margin: 0 auto; }
+  .oculto { display: none !important; }
+
+  .emergencia { background: var(--alerta); color: var(--blanco); border-radius: 18px; padding: 18px 22px; font-size: 30px; font-weight: 700; line-height: 1.3; }
+  .emergencia span { display: block; font-size: 22px; font-weight: 400; margin-top: 4px; }
+
+  .cabecera { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  .cabecera h1 { margin: 0; font-size: 34px; font-weight: 700; }
+  .estado { color: var(--tinta-suave); font-size: 24px; }
+
+  /* El botón es el compañero: un dial redondo cuyo anillo crece con la voz de la persona. */
+  .centro { display: grid; place-items: center; min-height: calc(var(--radio-boton) + 40px); }
+  .dial {
+    position: relative; width: var(--radio-boton); height: var(--radio-boton);
+    border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--botella); color: var(--blanco);
+    font: inherit; font-size: 34px; font-weight: 700;
+    display: grid; place-items: center; text-align: center; padding: 18%;
+    box-shadow: 0 0 0 calc(10px + var(--nivel, 0) * 48px) var(--botella-claro);
+    transition: box-shadow 90ms linear, background-color 200ms ease;
+  }
+  .dial:focus-visible { outline: 6px solid var(--mostaza); outline-offset: 10px; }
+  .dial[data-estado="escuchando"] { background: var(--mostaza); color: var(--tinta); }
+  .dial[data-estado="pensando"] { background: var(--tinta-suave); }
+  .dial[data-estado="hablando"] { background: var(--botella); }
+  .dial[data-estado="desconectado"] { background: #7C8B85; cursor: default; }
+  .dial[data-estado="pensando"]::after {
+    content: ""; position: absolute; inset: -14px; border-radius: 50%;
+    border: 6px solid transparent; border-top-color: var(--botella);
+    animation: girar 1.4s linear infinite;
+  }
+  @keyframes girar { to { transform: rotate(1turn); } }
+  @media (prefers-reduced-motion: reduce) {
+    .dial { transition: none; }
+    .dial[data-estado="pensando"]::after { animation: none; border-color: var(--botella); }
+  }
+
+  .subtitulos { background: var(--blanco); border-radius: 22px; padding: 22px 26px; min-height: 150px; display: grid; gap: 10px; align-content: start; user-select: text; }
+  .dijo { color: var(--tinta-suave); font-size: 22px; }
+  .dijo:empty { display: none; }
+  .responde { font-size: 34px; line-height: 1.35; max-width: 34ch; }
+
+  .acciones { display: flex; gap: 14px; flex-wrap: wrap; }
+  .acciones button, .configurar button {
+    font: inherit; font-size: 24px; font-weight: 700; min-height: 64px; padding: 0 26px;
+    border-radius: 16px; border: 3px solid var(--botella); background: var(--blanco); color: var(--botella); cursor: pointer;
+  }
+  .acciones button:disabled { opacity: .45; cursor: default; }
+  .acciones button:focus-visible, .configurar button:focus-visible, input:focus-visible { outline: 4px solid var(--mostaza); outline-offset: 3px; }
+  .escribir { display: flex; gap: 12px; flex: 1 1 100%; }
+  input[type="text"], input[type="password"] { flex: 1; min-width: 0; font: inherit; font-size: 24px; padding: 14px 18px; border-radius: 14px; border: 3px solid var(--tinta-suave); background: var(--blanco); color: var(--tinta); user-select: text; }
+
+  .configurar { max-width: 640px; margin: 12vh auto; padding: 0 24px; display: grid; gap: 18px; }
+  .configurar h1 { font-size: 32px; margin: 0; }
+  .configurar p { margin: 0; color: var(--tinta-suave); font-size: 22px; }
+  .error { color: var(--alerta); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<section class="configurar oculto" id="configurar" aria-labelledby="titulo-config">
+  <h1 id="titulo-config">Configurar esta tablet</h1>
+  <p>Pegue el código del dispositivo que entregó el equipo de Vincular-IA. Se guarda solo en esta tablet.</p>
+  <input type="password" id="token" autocomplete="off" aria-label="Código del dispositivo">
+  <button id="guardar-token">Guardar y empezar</button>
+  <p class="error" id="error-config" role="alert"></p>
+</section>
+
+<main class="pantalla oculto" id="principal">
+  <div class="emergencia oculto" id="emergencia" role="alert"></div>
+  <header class="cabecera">
+    <h1 id="nombre">Mi compañero</h1>
+    <div class="estado" id="estado" aria-live="polite">Conectando…</div>
+  </header>
+  <div class="centro">
+    <button class="dial" id="dial" data-estado="desconectado" aria-describedby="estado">Toque para hablar</button>
+  </div>
+  <div>
+    <section class="subtitulos" aria-live="polite">
+      <div class="dijo" id="dijo"></div>
+      <div class="responde" id="responde">Toque el círculo y hable con calma. Cuando termine, espere un momento.</div>
+    </section>
+    <div class="acciones" style="margin-top:16px">
+      <button id="repetir" disabled>Repetir</button>
+      <button id="mostrar-escribir">Escribir</button>
+      <form class="escribir oculto" id="escribir">
+        <input type="text" id="texto" maxlength="4000" aria-label="Escriba su mensaje">
+        <button type="submit">Enviar</button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const CLAVE = 'vincular.tokenDispositivo';
+  const SILENCIO_MS = 1600;      // pausa que da por terminado el turno (personas mayores: pausas largas)
+  const MAX_GRABACION_MS = 60000;
+  const UMBRAL_VOZ = 0.035;      // nivel RMS que cuenta como voz
+
+  const leerToken = () => { try { return localStorage.getItem(CLAVE); } catch { return null; } };
+  const guardarToken = (t) => { try { localStorage.setItem(CLAVE, t); } catch {} };
+
+  let ws = null, intentos = 0, estado = 'desconectado';
+  let grabadora = null, flujo = null, contextoAudio = null, analizador = null, cuadro = 0;
+  let cola = [], indice = 0, turnoTerminado = true, ultimaRespuesta = [], reproductor = null, reproduciendo = false;
+
+  function fijarEstado(e, texto) {
+    estado = e;
+    $('dial').dataset.estado = e;
+    $('dial').textContent = { libre: 'Toque para hablar', escuchando: 'Le escucho', pensando: 'Pensando', hablando: 'Toque para callarme', desconectado: 'Sin conexión' }[e];
+    $('estado').textContent = texto ?? { libre: 'Listo', escuchando: 'Escuchando…', pensando: 'Pensando…', hablando: 'Hablando', desconectado: 'Reconectando…' }[e];
+    $('repetir').disabled = e !== 'libre' || ultimaRespuesta.length === 0;
+  }
+
+  // ── Conexión ────────────────────────────────────────────────────────────
+  function conectar() {
+    const token = leerToken();
+    if (!token) return mostrarConfiguracion();
+    $('configurar').classList.add('oculto');
+    $('principal').classList.remove('oculto');
+    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/conversacion/ws`);
+    ws.onopen = () => ws.send(JSON.stringify({ tipo: 'autenticar', token, canal: 'voz' }));
+    ws.onmessage = (ev) => recibir(JSON.parse(ev.data));
+    ws.onclose = (ev) => {
+      fijarEstado('desconectado');
+      if (ev.code === 4401) { guardarToken(''); return mostrarConfiguracion('El código no es válido. Pida uno nuevo al equipo.'); }
+      setTimeout(conectar, Math.min(30000, 1000 * 2 ** intentos++));
+    };
+  }
+
+  function recibir(m) {
+    switch (m.tipo) {
+      case 'sesion':
+        intentos = 0;
+        emergencia(m.modoEmergencia, m.emergencia);
+        window.__emergencia = m.emergencia;
+        fijarEstado('libre');
+        break;
+      case 'transcripcion':
+        $('dijo').textContent = `Usted dijo: «${m.texto}»`;
+        break;
+      case 'respuesta':
+        $('responde').textContent = m.texto;
+        emergencia(m.modoEmergencia, window.__emergencia);
+        cola = []; indice = 0; turnoTerminado = false;
+        break;
+      case 'no_entendi':
+        $('responde').textContent = m.texto;
+        cola = []; indice = 0; turnoTerminado = false;
+        break;
+      case 'audio_respuesta':
+        cola.push(`data:${m.mime};base64,${m.datos}`);
+        if (!reproduciendo) reproducirSiguiente();
+        break;
+      case 'sin_audio':
+        $('estado').textContent = 'No pude hablar; lea la respuesta en la pantalla';
+        break;
+      case 'fin_turno':
+        turnoTerminado = true;
+        ultimaRespuesta = cola.slice();
+        if (!reproduciendo) fijarEstado('libre');
+        break;
+      case 'error':
+        $('estado').textContent = m.error;
+        if (estado === 'pensando' || estado === 'escuchando') fijarEstado('libre', m.error);
+        break;
+    }
+  }
+
+  function emergencia(activa, numeros) {
+    const caja = $('emergencia');
+    if (!activa || !numeros) return caja.classList.add('oculto');
+    caja.innerHTML = '';
+    caja.append(`Si necesita ayuda ahora, llame al ${numeros.samu} (SAMU)`);
+    const linea = document.createElement('span');
+    linea.textContent = `o al ${numeros.prevencionSuicidio}. Su equipo ya fue avisado.`;
+    caja.append(linea);
+    caja.classList.remove('oculto');
+  }
+
+  // ── Reproducción ────────────────────────────────────────────────────────
+  // Las frases llegan de a una; suenan en orden y, si la siguiente aún no llega, se espera.
+  function reproducirSiguiente() {
+    if (indice >= cola.length) {
+      reproduciendo = false;
+      if (turnoTerminado) fijarEstado('libre');
+      return;
+    }
+    reproduciendo = true;
+    fijarEstado('hablando');
+    reproductor = new Audio(cola[indice++]);
+    reproductor.onended = reproducirSiguiente;
+    reproductor.onerror = reproducirSiguiente;
+    reproductor.play().catch(() => { reproduciendo = false; fijarEstado('libre', 'Toque Repetir para escuchar'); });
+  }
+
+  function callar() {
+    if (reproductor) { reproductor.onended = null; reproductor.onerror = null; reproductor.pause(); }
+    indice = cola.length;
+    reproduciendo = false;
+    fijarEstado('libre');
+  }
+
+  // ── Grabación con fin automático por silencio ───────────────────────────
+  async function empezarGrabacion() {
+    try {
+      flujo ??= await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    } catch {
+      return fijarEstado('libre', 'Necesito permiso para usar el micrófono');
+    }
+    const tipo = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find((t) => MediaRecorder.isTypeSupported(t)) ?? '';
+    grabadora = new MediaRecorder(flujo, tipo ? { mimeType: tipo } : {});
+    const trozos = [];
+    grabadora.ondataavailable = (e) => e.data.size && trozos.push(e.data);
+    grabadora.onstop = async () => {
+      cancelAnimationFrame(cuadro);
+      $('dial').style.setProperty('--nivel', 0);
+      const blob = new Blob(trozos, { type: grabadora.mimeType || tipo || 'audio/webm' });
+      if (blob.size < 2000) return fijarEstado('libre', 'No alcancé a escuchar nada');
+      fijarEstado('pensando');
+      $('dijo').textContent = '';
+      const datos = await new Promise((r) => { const lector = new FileReader(); lector.onload = () => r(String(lector.result).split(',')[1]); lector.readAsDataURL(blob); });
+      ws.send(JSON.stringify({ tipo: 'audio', mime: blob.type, datos }));
+    };
+    grabadora.start(250);
+    fijarEstado('escuchando');
+    medirSilencio();
+  }
+
+  function medirSilencio() {
+    contextoAudio ??= new AudioContext();
+    analizador = contextoAudio.createAnalyser();
+    analizador.fftSize = 1024;
+    contextoAudio.createMediaStreamSource(flujo).connect(analizador);
+    const muestras = new Float32Array(analizador.fftSize);
+    const inicio = performance.now();
+    let hablo = false, ultimaVoz = inicio;
+    const paso = () => {
+      analizador.getFloatTimeDomainData(muestras);
+      const rms = Math.sqrt(muestras.reduce((s, x) => s + x * x, 0) / muestras.length);
+      $('dial').style.setProperty('--nivel', Math.min(1, rms * 8).toFixed(3));
+      const ahora = performance.now();
+      if (rms > UMBRAL_VOZ) { hablo = true; ultimaVoz = ahora; }
+      if ((hablo && ahora - ultimaVoz > SILENCIO_MS) || ahora - inicio > MAX_GRABACION_MS) return terminarGrabacion();
+      cuadro = requestAnimationFrame(paso);
+    };
+    cuadro = requestAnimationFrame(paso);
+  }
+
+  function terminarGrabacion() {
+    if (grabadora && grabadora.state === 'recording') grabadora.stop();
+  }
+
+  // ── Interacción ─────────────────────────────────────────────────────────
+  $('dial').addEventListener('click', () => {
+    if (estado === 'libre') empezarGrabacion();
+    else if (estado === 'escuchando') terminarGrabacion();
+    else if (estado === 'hablando') callar();
+  });
+  $('repetir').addEventListener('click', () => {
+    if (!ultimaRespuesta.length) return;
+    cola = ultimaRespuesta.slice(); indice = 0; turnoTerminado = true;
+    reproducirSiguiente();
+  });
+  $('mostrar-escribir').addEventListener('click', () => { $('escribir').classList.toggle('oculto'); $('texto').focus(); });
+  $('escribir').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const texto = $('texto').value.trim();
+    if (!texto || estado !== 'libre') return;
+    $('texto').value = '';
+    $('dijo').textContent = `Usted escribió: «${texto}»`;
+    fijarEstado('pensando');
+    ws.send(JSON.stringify({ tipo: 'turno', texto }));
+  });
+
+  function mostrarConfiguracion(error = '') {
+    $('principal').classList.add('oculto');
+    $('configurar').classList.remove('oculto');
+    $('error-config').textContent = error;
+  }
+  $('guardar-token').addEventListener('click', () => {
+    const t = $('token').value.trim();
+    if (t.length < 20) return ($('error-config').textContent = 'Ese código es demasiado corto.');
+    guardarToken(t);
+    $('token').value = '';
+    conectar();
+  });
+
+  conectar();
+})();
+</script>
+</body>
+</html>

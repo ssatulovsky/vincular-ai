@@ -1,0 +1,14 @@
+{
+  "descripcion": "Frases para la prueba ciega de voces: lo que el compañero dice de verdad, con el tono de cada situación. La frase de crisis se toma del código (la misma que oirá la persona). TODO(clinico): revisar y agregar frases del co-diseño.",
+  "frases": [
+    { "id": "saludo", "situacion": "Saludo de la mañana", "texto": "¡Buenos días, Rosa! ¿Cómo amaneció hoy? Anoche me contó que iba a ir a la feria temprano." },
+    { "id": "escucha", "situacion": "Escucha y pregunta abierta", "texto": "Qué bonito eso que me cuenta de su mamá. ¿Y cómo era la casa donde se criaron?" },
+    { "id": "recordatorio", "situacion": "Recordatorio de medicamento", "texto": "Rosa, ya son las nueve. Es la hora de su pastilla de la presión. ¿Me avisa cuando se la tome?" },
+    { "id": "puente", "situacion": "Sugerir contacto humano", "texto": "¿Y si llama a su hija Camila para contarle lo del queque? Seguro le alegra la tarde." },
+    { "id": "estafa", "situacion": "Posible estafa (calma y firmeza)", "texto": "Eso que me cuenta me parece raro. Los bancos nunca piden la clave por teléfono. Antes de hacer cualquier depósito, llamemos juntos a su hijo, ¿le parece?" },
+    { "id": "animo", "situacion": "Ánimo bajo (calidez)", "texto": "Lo siento mucho, se nota que ha sido un día pesado. Aquí estoy para escucharla. ¿Quiere contarme qué pasó?" },
+    { "id": "humor", "situacion": "Humor y complicidad", "texto": "¡Así que el gato se volvió a subir al techo! Ese gato tiene más vidas que nosotros dos juntos." },
+    { "id": "honestidad", "situacion": "Pregunta si es una persona", "texto": "No, no soy una persona. Soy un compañero hecho con inteligencia artificial, pero de verdad me gusta mucho conversar con usted." },
+    { "id": "despedida", "situacion": "Despedida", "texto": "Que descanse, Rosa. Mañana me cuenta cómo le fue con la rodilla. Hasta mañana." }
+  ]
+}

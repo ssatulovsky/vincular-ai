@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { transaccion } from '../../db/conexion.ts';
-import { esquemaPerfil } from '../../conversacion/perfil.ts';
+import { esquemaPerfil, guardarPerfil } from '../../conversacion/perfil.ts';
+import { exigirVozOfrecida } from './voz.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
 import { hashContrasena } from '../../seguridad/autenticacion.ts';
 import { exigirPermiso } from '../../seguridad/permisos.ts';
@@ -126,14 +127,9 @@ export const rutasAdministracion =
       const { id } = z.object({ id: uuid }).parse(req.params);
       await exigirPermiso(app.bd, actor, 'perfil_companero.editar', id);
       const p = esquemaPerfil.parse(req.body);
+      exigirVozOfrecida(app, p.voz_id);
       await transaccion(app.bd, async (c) => {
-        await c.query(
-          `INSERT INTO perfil_companero (persona_id, nombre, personalidad, forma_de_hablar, trato, voz_id, avatar_id, rol_preferente)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-           ON CONFLICT (persona_id) DO UPDATE SET nombre = EXCLUDED.nombre, personalidad = EXCLUDED.personalidad, forma_de_hablar = EXCLUDED.forma_de_hablar,
-             trato = EXCLUDED.trato, voz_id = EXCLUDED.voz_id, avatar_id = EXCLUDED.avatar_id, rol_preferente = EXCLUDED.rol_preferente, actualizado_en = now()`,
-          [id, p.nombre, p.personalidad, p.forma_de_hablar, p.trato, p.voz_id, p.avatar_id, p.rol_preferente],
-        );
+        await guardarPerfil(c, id, p);
         await auditar(c, actor, { accion: 'perfil_companero.editar', recursoTipo: 'perfil_companero', recursoId: id, personaId: id });
       });
       return { ok: true };

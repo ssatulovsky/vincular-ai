@@ -7,6 +7,7 @@ import { auditar } from '../../seguridad/auditoria.ts';
 import type { Actor } from '../../seguridad/permisos.ts';
 import { ErrorHttp, enSegundoPlano, exigirActor, type Aplicacion } from '../servidor.ts';
 import { procesarSesion } from '../../memoria/extraccion.ts';
+import { MAX_BYTES_AUDIO, procesarTurnoVoz } from '../../voz/turnoVoz.ts';
 
 type ActorDispositivo = Extract<Actor, { tipo: 'dispositivo' }>;
 
@@ -78,7 +79,7 @@ export const rutasConversacion =
      * primer mensaje autentica: {"tipo":"autenticar","token":"..."}. Después:
      *   → {"tipo":"turno","texto":"..."}      ← {"tipo":"respuesta","texto","nivel","modoEmergencia"}
      *   → {"tipo":"cerrar"}                    ← {"tipo":"cerrada"} | {"tipo":"no_cerrada","motivo"}
-     * Desde el Sprint 3 este canal transporta audio.
+     *   → {"tipo":"audio","mime":"audio/webm;codecs=opus","datos":"<base64>"}  turno hablado (ver voz/turnoVoz.ts)
      */
     f.get('/api/conversacion/ws', { websocket: true }, (socket) => {
       let actor: ActorDispositivo | null = null;
@@ -89,6 +90,7 @@ export const rutasConversacion =
       const mensaje = z.discriminatedUnion('tipo', [
         z.object({ tipo: z.literal('autenticar'), token: z.string().min(10).max(200), canal: z.enum(['texto', 'voz']).default('texto') }),
         z.object({ tipo: z.literal('turno'), texto: z.string().min(1).max(4000) }),
+        z.object({ tipo: z.literal('audio'), mime: z.string().max(100), datos: z.string().min(1).max(Math.ceil((MAX_BYTES_AUDIO * 4) / 3) + 8) }),
         z.object({ tipo: z.literal('cerrar') }),
       ]);
 
@@ -111,12 +113,21 @@ export const rutasConversacion =
             actor = a;
             const s = await abrir(app, a, m.canal);
             sesionId = s.sesionId;
-            return enviar({ tipo: 'sesion', sesionId, modoEmergencia: s.modoEmergencia });
+            return enviar({ tipo: 'sesion', sesionId, modoEmergencia: s.modoEmergencia, emergencia: { samu: app.config.emergencia.samu, prevencionSuicidio: app.config.emergencia.prevencionSuicidio } });
           }
           if (!actor || !sesionId) return enviar({ tipo: 'error', error: 'Debe autenticarse primero' });
+          if (m.tipo === 'audio') {
+            if (!/^audio\/[a-z0-9.+-]+(;\s*codecs=[a-z0-9.,"-]+)?$/i.test(m.mime)) return enviar({ tipo: 'error', error: 'Formato de audio no admitido' });
+            const audio = Buffer.from(m.datos, 'base64');
+            if (audio.length === 0 || audio.length > MAX_BYTES_AUDIO) return enviar({ tipo: 'error', error: 'Audio vacío o demasiado largo' });
+            const deps = { bd: app.bd, orquestador: app.orquestador, servicios: app.voz, catalogo: app.catalogoVoces, umbralConfianza: app.config.voz.umbralConfianza, emergencia: app.config.emergencia };
+            await procesarTurnoVoz(deps, { sesionId, personaId: actor.personaId, audio, mime: m.mime }, enviar);
+            return;
+          }
           if (m.tipo === 'turno') {
             const r = await app.orquestador.procesarTurno(sesionId, actor.personaId, m.texto);
-            return enviar({ tipo: 'respuesta', texto: r.respuesta, nivel: r.nivel, modoEmergencia: r.modoEmergencia });
+            enviar({ tipo: 'respuesta', texto: r.respuesta, nivel: r.nivel, modoEmergencia: r.modoEmergencia });
+            return enviar({ tipo: 'fin_turno' });
           }
           const c = await cerrar(app, actor, sesionId);
           if (c.cerrada) {

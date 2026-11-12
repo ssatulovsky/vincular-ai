@@ -114,7 +114,7 @@ export async function exportarMemoria(bd: Consultable, c: Cifrador, personaId: s
   const [hechos, episodios, perfil] = await Promise.all([
     listarHechos(bd, c, personaId, { incluirPrivados: true }),
     episodiosRecientes(bd, c, personaId, 10_000),
-    bd.query('SELECT nombre, personalidad, forma_de_hablar, trato, voz_id, avatar_id, rol_preferente, actualizado_en FROM perfil_companero WHERE persona_id = $1', [personaId]),
+    bd.query('SELECT nombre, personalidad, forma_de_hablar, trato, voz_id, avatar_id, rol_preferente, velocidad_voz, actualizado_en FROM perfil_companero WHERE persona_id = $1', [personaId]),
   ]);
   return {
     formato: 'vincular-ia/memoria/v1',

@@ -33,6 +33,18 @@ export function configDePrueba(extra: Partial<Config> = {}): Config {
     emergencia: { ...CONTACTOS, verificados: false },
     rutaPrecios: new URL('../../../config/precios-modelos.json', import.meta.url).pathname,
     memoriaMinutosInactividad: 30,
+    // Proveedores de voz inalcanzables (puerto cerrado): se prueban los caminos sin voz.
+    voz: {
+      catalogo: new URL('../../../config/voz/voces.json', import.meta.url).pathname,
+      umbralConfianza: 0.5,
+      servicios: {
+        google: { claveApi: 'clave-de-prueba', proyecto: 'proyecto-prueba' },
+        elevenlabs: { apiKey: 'clave-de-prueba' },
+        reconocimiento: { proveedor: 'elevenlabs', idioma: 'es' },
+        timeoutMs: 1500,
+        urls: { googleTts: 'http://127.0.0.1:9', googleStt: 'http://127.0.0.1:9', elevenlabs: 'http://127.0.0.1:9' },
+      },
+    },
     ...extra,
   };
 }
