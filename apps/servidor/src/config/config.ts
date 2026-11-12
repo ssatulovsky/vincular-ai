@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { ConfigIA, Tarea } from '@vincular/ia';
 import type { ContactosEmergencia } from '@vincular/seguridad-clinica';
 import type { ConfigVoz } from '@vincular/voz';
+import type { PlazosMedicacion } from '../medicacion/agenda.ts';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -47,6 +48,11 @@ const esquemaEntorno = esquemaEntornoVoz.extend({
   PRECIOS_MODELOS: z.string().default(path.join(RAIZ, 'config/precios-modelos.json')),
   // Minutos sin turnos nuevos para considerar terminada una sesión y extraer su memoria.
   MEMORIA_MINUTOS_INACTIVIDAD: z.coerce.number().int().positive().default(30),
+  // Enfermero digital. TODO(clinico): plazos definitivos.
+  MEDICACION_SEGUNDO_AVISO_MIN: z.coerce.number().int().positive().default(30),
+  MEDICACION_SIN_RESPUESTA_MIN: z.coerce.number().int().positive().default(30),
+  // Iniciar el planificador (recordatorios, memoria) dentro del servidor.
+  PLANIFICADOR: z.enum(['si', 'no']).default('si'),
 });
 
 const esquemaTarea = z.object({
@@ -80,6 +86,8 @@ export interface Config {
   rutaPrecios: string;
   memoriaMinutosInactividad: number;
   voz: { catalogo: string; umbralConfianza: number; servicios: ConfigVoz };
+  medicacion: PlazosMedicacion;
+  planificador: boolean;
 }
 
 export function cargarConfig(entorno: NodeJS.ProcessEnv = process.env): Config {
@@ -130,6 +138,8 @@ export function cargarConfig(entorno: NodeJS.ProcessEnv = process.env): Config {
     rutaPrecios: e.PRECIOS_MODELOS,
     memoriaMinutosInactividad: e.MEMORIA_MINUTOS_INACTIVIDAD,
     voz: configVozDe(e),
+    medicacion: { segundoAvisoMin: e.MEDICACION_SEGUNDO_AVISO_MIN, sinRespuestaMin: e.MEDICACION_SIN_RESPUESTA_MIN, vencimientoMin: 60 },
+    planificador: e.PLANIFICADOR === 'si',
     emergencia: { samu: protocolo.numeros.samu.numero, prevencionSuicidio: protocolo.numeros.prevencionSuicidio.numero, verificados },
   };
 }

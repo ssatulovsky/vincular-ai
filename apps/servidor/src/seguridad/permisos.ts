@@ -23,7 +23,10 @@ export type Accion =
   | 'conversacion.usar'
   | 'memoria.propia'
   | 'memoria.ver'
-  | 'costos.ver';
+  | 'costos.ver'
+  | 'medicacion.gestionar'
+  | 'salud.propia'
+  | 'hoja_control.ver';
 
 /** Hechos sobre la relación entre el actor y la persona, resueltos desde la base. */
 export interface Contexto {
@@ -47,13 +50,18 @@ const CLINICOS: readonly RolPersonal[] = ['supervisor_clinico', 'enfermera_enlac
 export function decidirPermiso(actor: Actor, accion: Accion, personaId: string | null, ctx: Contexto): boolean {
   if (actor.tipo === 'dispositivo') {
     // La tablet es la persona: conversa, ve, corrige, exporta y borra su memoria, y diseña su compañero.
-    return personaId === actor.personaId && (accion === 'conversacion.usar' || accion === 'memoria.propia' || accion === 'perfil_companero.editar');
+    return (
+      personaId === actor.personaId &&
+      (accion === 'conversacion.usar' || accion === 'memoria.propia' || accion === 'perfil_companero.editar' || accion === 'salud.propia' || accion === 'hoja_control.ver')
+    );
   }
 
   if (actor.tipo === 'familiar') {
     if (personaId !== actor.personaId || !ctx.esSuContacto) return false;
     // Un familiar nunca ve transcripciones, planes ni alertas clínicas: solo lo que la persona autorizó.
     if (accion === 'resumen_bienestar.leer') return ctx.permisosContacto.resumen_bienestar === true;
+    // La hoja para el control (sin lo privado) puede servirle a quien acompaña a la persona al control.
+    if (accion === 'hoja_control.ver') return ctx.permisosContacto.hoja_control === true;
     return false;
   }
 
@@ -70,6 +78,8 @@ export function decidirPermiso(actor: Actor, accion: Accion, personaId: string |
     case 'persona.ver_ficha':
     case 'plan.leer':
     case 'memoria.ver':
+    case 'medicacion.gestionar':
+    case 'hoja_control.ver':
       return CLINICOS.includes(rol) && ctx.asignado;
     case 'plan.editar':
     case 'transcripcion.leer':
@@ -81,6 +91,7 @@ export function decidirPermiso(actor: Actor, accion: Accion, personaId: string |
     case 'resumen_bienestar.leer':
     case 'conversacion.usar':
     case 'memoria.propia':
+    case 'salud.propia':
       return false;
   }
 }

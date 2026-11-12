@@ -88,6 +88,13 @@
   .escribir { display: flex; gap: 12px; flex: 1 1 100%; }
   input[type="text"], input[type="password"] { flex: 1; min-width: 0; font: inherit; font-size: 24px; padding: 14px 18px; border-radius: 14px; border: 3px solid var(--tinta-suave); background: var(--blanco); color: var(--tinta); user-select: text; }
 
+  .recordatorio { background: var(--blanco); border: 4px solid var(--mostaza); border-radius: 22px; padding: 20px 24px; display: grid; gap: 16px; }
+  .recordatorio p { margin: 0; font-size: 30px; line-height: 1.35; }
+  .recordatorio .botones { display: flex; gap: 14px; flex-wrap: wrap; }
+  .recordatorio button { font: inherit; font-size: 28px; font-weight: 700; min-height: 76px; padding: 0 30px; border-radius: 18px; border: 0; background: var(--botella); color: var(--blanco); cursor: pointer; }
+  .recordatorio button.secundario { background: var(--blanco); color: var(--botella); border: 3px solid var(--botella); }
+  .recordatorio button:focus-visible { outline: 5px solid var(--mostaza); outline-offset: 4px; }
+
   .configurar { max-width: 640px; margin: 12vh auto; padding: 0 24px; display: grid; gap: 18px; }
   .configurar h1 { font-size: 32px; margin: 0; }
   .configurar p { margin: 0; color: var(--tinta-suave); font-size: 22px; }
@@ -106,6 +113,13 @@
 
 <main class="pantalla oculto" id="principal">
   <div class="emergencia oculto" id="emergencia" role="alert"></div>
+  <section class="recordatorio oculto" id="recordatorio" aria-live="assertive">
+    <p id="recordatorio-texto"></p>
+    <div class="botones">
+      <button id="ya-tome">Ya me lo tomé</button>
+      <button class="secundario" id="recordatorio-oir">Escuchar de nuevo</button>
+    </div>
+  </section>
   <header class="cabecera">
     <h1 id="nombre">Mi compañero</h1>
     <div class="estado" id="estado" aria-live="polite">Conectando…</div>
@@ -170,8 +184,13 @@
 
   function recibir(m) {
     switch (m.tipo) {
+      case 'recordatorio_dosis':
+        mostrarRecordatorio(m);
+        break;
       case 'sesion':
         intentos = 0;
+        vaciarCola();
+        cargarAgenda();
         emergencia(m.modoEmergencia, m.emergencia);
         window.__emergencia = m.emergencia;
         fijarEstado('libre');
@@ -204,6 +223,96 @@
         $('estado').textContent = m.error;
         if (estado === 'pensando' || estado === 'escuchando') fijarEstado('libre', m.error);
         break;
+    }
+  }
+
+  // ── Recordatorios de medicación ─────────────────────────────────────────
+  // El servidor los envía a la hora indicada. La tablet además guarda la agenda de 48 h: si a la
+  // hora no hay conexión, el recordatorio suena igual (con la voz del sistema) y la confirmación
+  // queda en cola hasta reconectar.
+  const COLA = 'vincular.confirmacionesPendientes';
+  let recordatorioActual = null, temporizadoresLocales = [], recibidosDelServidor = new Set();
+  const leerCola = () => { try { return JSON.parse(localStorage.getItem(COLA)) || []; } catch { return []; } };
+  const guardarCola = (c) => { try { localStorage.setItem(COLA, JSON.stringify(c)); } catch {} };
+
+  function mostrarRecordatorio(r) {
+    recordatorioActual = r;
+    r.eventoIds.forEach((id) => recibidosDelServidor.add(id));
+    $('recordatorio-texto').textContent = r.texto;
+    $('recordatorio').classList.remove('oculto');
+    hablarRecordatorio();
+  }
+
+  function hablarRecordatorio() {
+    const r = recordatorioActual;
+    if (!r) return;
+    if (r.audio) return void new Audio(`data:${r.audio.mime};base64,${r.audio.datos}`).play().catch(() => {});
+    // Sin audio del servidor (sin conexión o falla de síntesis): la voz del sistema de la tablet.
+    if ('speechSynthesis' in window) {
+      const u = new SpeechSynthesisUtterance(r.texto);
+      u.lang = 'es-CL';
+      u.rate = 0.9;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    }
+  }
+
+  async function confirmarToma() {
+    const r = recordatorioActual;
+    if (!r) return;
+    $('recordatorio').classList.add('oculto');
+    recordatorioActual = null;
+    const cuerpo = { eventoIds: r.eventoIds, tomadaEn: new Date().toISOString() };
+    try {
+      await enviarConfirmacion(cuerpo, false);
+      $('estado').textContent = 'Anotado. ¡Gracias!';
+    } catch {
+      guardarCola([...leerCola(), cuerpo]);
+      $('estado').textContent = 'Anotado. Lo enviaré cuando vuelva la conexión.';
+    }
+  }
+
+  async function enviarConfirmacion(cuerpo, sinConexion) {
+    const r = await fetch('/api/mi-medicacion/confirmar', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${leerToken()}` },
+      body: JSON.stringify({ ...cuerpo, sinConexion }),
+    });
+    if (!r.ok && r.status >= 500) throw new Error('servidor');
+  }
+
+  async function vaciarCola() {
+    const pendientes = leerCola();
+    if (!pendientes.length) return;
+    const quedan = [];
+    for (const c of pendientes) { try { await enviarConfirmacion(c, true); } catch { quedan.push(c); } }
+    guardarCola(quedan);
+  }
+
+  async function cargarAgenda() {
+    try {
+      const r = await fetch('/api/mi-medicacion/agenda?horas=48', { headers: { authorization: `Bearer ${leerToken()}` } });
+      if (!r.ok) return;
+      const { recordatorios } = await r.json();
+      try { localStorage.setItem('vincular.agenda', JSON.stringify(recordatorios)); } catch {}
+      programarLocales(recordatorios);
+    } catch {
+      try { programarLocales(JSON.parse(localStorage.getItem('vincular.agenda')) || []); } catch {}
+    }
+  }
+
+  function programarLocales(recordatorios) {
+    temporizadoresLocales.forEach(clearTimeout);
+    temporizadoresLocales = [];
+    const ahora = Date.now();
+    for (const r of recordatorios) {
+      // Margen de 90 s: si el servidor lo entregó, la tablet no lo repite.
+      const en = new Date(r.programadaEn).getTime() + 90_000 - ahora;
+      if (en < 0 || en > 2 ** 31 - 1) continue;
+      temporizadoresLocales.push(setTimeout(() => {
+        if (r.eventoIds.some((id) => recibidosDelServidor.has(id))) return;
+        mostrarRecordatorio({ eventoIds: r.eventoIds, texto: r.texto, segundoAviso: false });
+      }, en));
     }
   }
 
@@ -297,6 +406,8 @@
     else if (estado === 'escuchando') terminarGrabacion();
     else if (estado === 'hablando') callar();
   });
+  $('ya-tome').addEventListener('click', confirmarToma);
+  $('recordatorio-oir').addEventListener('click', hablarRecordatorio);
   $('repetir').addEventListener('click', () => {
     if (!ultimaRespuesta.length) return;
     cola = ultimaRespuesta.slice(); indice = 0; turnoTerminado = true;
@@ -326,6 +437,7 @@
     conectar();
   });
 
+  try { programarLocales(JSON.parse(localStorage.getItem('vincular.agenda')) || []); } catch {}
   conectar();
 })();
 </script>

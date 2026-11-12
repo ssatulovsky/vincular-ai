@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import type { EspecificacionHerramienta, ModelosPorTarea } from '@vincular/ia';
 import { esNivelRiesgo, normalizar, type NivelRiesgo } from '@vincular/seguridad-clinica';
-import type { Consultable } from '../db/conexion.ts';
+import type { Bd } from '../db/conexion.ts';
+import { confirmarDosis, diaLocal, dosisEntre, registrarOmision } from '../medicacion/agenda.ts';
+import { anotarPregunta, citasProximas } from '../medicacion/citas.ts';
 import { buscarEpisodios } from '../memoria/episodica.ts';
 import { CAPAS, confirmarHecho, corregirHecho, crearHecho, listarHechos, marcarPrivado, olvidarHecho } from '../memoria/hechos.ts';
 import { auditar } from '../seguridad/auditoria.ts';
@@ -17,13 +19,14 @@ import type { Cifrador } from '../seguridad/cifrado.ts';
  */
 
 export interface AmbitoHerramienta {
-  bd: Consultable;
+  bd: Bd;
   cifrador: Cifrador;
   modelos: ModelosPorTarea;
   personaId: string;
   sesionId: string;
   dispositivoId: string | null;
   turnoPersonaId: string;
+  ahora: () => Date;
   /** El agente reportó riesgo: el orquestador lo combina (solo puede subir el nivel). */
   alReportarRiesgo: (nivel: NivelRiesgo, motivo: string) => void;
 }
@@ -172,7 +175,95 @@ const riesgoReportar: Herramienta<{ nivel: number; motivo: string }> = {
   },
 };
 
-export const HERRAMIENTAS = [memoriaBuscar, memoriaQueRecuerdo, memoriaGuardarHecho, memoriaCorregir, memoriaConfirmar, memoriaOlvidar, memoriaPrivado, riesgoReportar] as const;
+// ── Enfermero digital ─────────────────────────────────────────────────────────────
+// Ninguna herramienta permite cambiar, saltar ni duplicar una dosis: solo informar el horario
+// indicado por el equipo de salud y registrar lo que la persona dice que hizo.
+
+const medicacionDeHoy: Herramienta<Record<string, never>> = {
+  especificacion: {
+    nombre: 'medicacion_de_hoy',
+    descripcion: 'Los remedios de hoy de la persona: hora, nombre, para qué son y si ya los confirmó. Para conversar de su rutina, no para dar indicaciones.',
+    esquemaEntrada: { type: 'object', properties: {} },
+  },
+  entrada: z.object({}) as unknown as z.ZodType<Record<string, never>>,
+  async ejecutar(a) {
+    const { desde, hasta } = await diaLocal(a.bd, a.personaId, a.ahora());
+    const dosis = await dosisEntre(a.bd, a.cifrador, a.personaId, desde, hasta);
+    return { remedios: dosis.map((x) => ({ evento_id: x.eventoId, hora: x.hora, nombre: x.nombre, para_que: x.propositoSimple, estado: x.estado })) };
+  },
+};
+
+const medicacionConfirmar: Herramienta<{ evento_ids?: string[] | undefined }> = {
+  especificacion: {
+    nombre: 'medicacion_confirmar_dosis',
+    descripcion:
+      'Registra que la persona se tomó sus remedios, cuando ella lo dice ("ya me la tomé"). Sin evento_ids, confirma los de la hora más cercana. No la uses si no lo dijo con claridad.',
+    esquemaEntrada: { type: 'object', properties: { evento_ids: { type: 'array', items: { type: 'string' } } } },
+  },
+  entrada: z.object({ evento_ids: z.array(idHecho).max(20).optional() }),
+  async ejecutar(a, e) {
+    const confirmadas = await confirmarDosis(a.bd, a.personaId, { ...(e.evento_ids?.length ? { eventoIds: e.evento_ids } : {}), ahora: a.ahora(), origen: 'voz' });
+    return confirmadas.length ? { confirmadas: confirmadas.length } : { confirmadas: 0, nota: 'No había remedios pendientes cerca de esta hora.' };
+  },
+};
+
+const medicacionNoTomada: Herramienta<{ evento_ids: string[]; motivo?: string | undefined }> = {
+  especificacion: {
+    nombre: 'medicacion_no_tomada',
+    descripcion:
+      'Registra que la persona dice que NO se tomó o no se tomará un remedio, con su motivo en sus palabras. No insistas ni la hagas sentir culpable: ofrece anotar la duda para su control con control_anotar_pregunta.',
+    esquemaEntrada: { type: 'object', properties: { evento_ids: { type: 'array', items: { type: 'string' } }, motivo: { type: 'string' } }, required: ['evento_ids'] },
+  },
+  entrada: z.object({ evento_ids: z.array(idHecho).min(1).max(20), motivo: z.string().max(300).optional() }),
+  async ejecutar(a, e) {
+    const r = await registrarOmision(a.bd, a.cifrador, a.personaId, { eventoIds: e.evento_ids, motivo: e.motivo ?? null, ahora: a.ahora() });
+    return { registradas: r.length };
+  },
+};
+
+const citasProximasH: Herramienta<Record<string, never>> = {
+  especificacion: {
+    nombre: 'citas_proximas',
+    descripcion: 'Los controles y citas de salud de la persona en las próximas semanas.',
+    esquemaEntrada: { type: 'object', properties: {} },
+  },
+  entrada: z.object({}) as unknown as z.ZodType<Record<string, never>>,
+  async ejecutar(a) {
+    const citas = await citasProximas(a.bd, a.cifrador, a.personaId, a.ahora(), 45);
+    const fmt = new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    return { citas: citas.map((c) => ({ cuando: fmt.format(c.fecha), lugar: c.lugar, profesional: c.profesional })) };
+  },
+};
+
+const controlAnotarPregunta: Herramienta<{ texto: string }> = {
+  especificacion: {
+    nombre: 'control_anotar_pregunta',
+    descripcion:
+      'Anota una pregunta o duda de la persona para su próximo control de salud, con sus palabras. Úsala cuando pregunte algo que debe decidir su médico o la enfermera (dosis, síntomas, remedios olvidados). Después cuéntale que quedó anotada.',
+    esquemaEntrada: { type: 'object', properties: { texto: { type: 'string' } }, required: ['texto'] },
+  },
+  entrada: z.object({ texto: z.string().trim().min(3).max(400) }),
+  async ejecutar(a, e) {
+    await anotarPregunta(a.bd, a.cifrador, a.personaId, e.texto, a.turnoPersonaId, a.ahora());
+    return { anotada: true };
+  },
+};
+
+export const HERRAMIENTAS = [
+  memoriaBuscar,
+  memoriaQueRecuerdo,
+  memoriaGuardarHecho,
+  memoriaCorregir,
+  memoriaConfirmar,
+  memoriaOlvidar,
+  memoriaPrivado,
+  medicacionDeHoy,
+  medicacionConfirmar,
+  medicacionNoTomada,
+  citasProximasH,
+  controlAnotarPregunta,
+  riesgoReportar,
+] as const;
 
 export const ESPECIFICACIONES: EspecificacionHerramienta[] = HERRAMIENTAS.map((h) => h.especificacion);
 

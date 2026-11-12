@@ -2,7 +2,9 @@
 
 Acompañante conversacional con supervisión clínica para personas mayores que viven solas. **Puente, no reemplazo**: el éxito se mide en menos soledad y más contacto humano, no en minutos de uso.
 
-> **Estado: Sprint 3 (voz).** Turno hablado de punta a punta (voz a texto → orquestador con riesgo y guardián → texto a voz por frases) con Google y ElevenLabs intercambiables, latencia medida por etapa, prototipo web de la tablet en `/tablet`, prueba ciega de voces para el co-diseño y benchmark de reconocimiento con métrica de riesgos perdidos.
+> **Estado: Sprint 4 (enfermero digital).** Medicamentos registrados por el equipo de salud, recordatorios por voz con segundo aviso a los 30 min y aviso al cuidador autorizado (o al equipo) si no hay respuesta, confirmación por voz, pantalla o sin conexión, citas, preguntas para el control y hoja de una página. Las notificaciones se crean; su envío llega en el Sprint 5.
+>
+> **Sprint 3 (voz).** Turno hablado de punta a punta (voz a texto → orquestador con riesgo y guardián → texto a voz por frases) con Google y ElevenLabs intercambiables, latencia medida por etapa, prototipo web de la tablet en `/tablet`, prueba ciega de voces para el co-diseño y benchmark de reconocimiento con métrica de riesgos perdidos.
 >
 > **Sprint 2 (memoria y personaje).** Sobre la base del Sprint 1 (bucle por texto con orquestador, guardián y detector de riesgo; autenticación y roles): memoria estructurada y episódica con extracción verificada por citas, "¿qué recuerdas de mí?", corregir, olvidar, privado, exportar y borrar; perfil del compañero que diseña la persona; costo por conversación y por persona al mes. Sin voz, sin tablet y **sin notificaciones** todavía: no usar con personas reales antes del Sprint 5. Ver `docs/decisiones/`.
 
@@ -94,10 +96,11 @@ Prototipo de la tablet: abrir `https://<servidor>/tablet` en la tablet y pegar e
 
 ## Tareas periódicas
 
-Hasta el planificador del Sprint 8, programar con cron:
+El servidor corre un planificador propio (recordatorios cada 20 s, memoria cada 5 min). Con `PLANIFICADOR=no`, programar con cron:
 
 ```bash
-npm run memoria:procesar          # cada 5 minutos
+npm run memoria:procesar          # cada 5 minutos (si PLANIFICADOR=no)
+npm run medicacion:ciclo          # cada minuto (si PLANIFICADOR=no)
 npm run costos:reporte -- 2026-11 # cuando se necesite
 ```
 
@@ -117,6 +120,9 @@ npm run costos:reporte -- 2026-11 # cuando se necesite
 | `GET/PUT /api/mi-perfil-companero` | tablet | La persona diseña su compañero |
 | `GET /api/personas/:id/memoria` | clínicos asignados | Memoria de la persona (auditado) |
 | `GET /api/costos?mes=AAAA-MM` · `GET /api/costos/sesiones/:id` | admin | Costo por persona al mes y por conversación |
+| `GET/POST /api/personas/:id/medicamentos` · `PUT …/:medId` · `POST …/:medId/suspender` · `GET /api/personas/:id/dosis` | equipo asignado | Medicación y adherencia |
+| `GET/POST /api/personas/:id/citas` · `POST …/:citaId/cancelar` · `GET …/:citaId/hoja` | equipo asignado (hoja: también familiar autorizado) | Citas y hoja para el control |
+| `GET /api/mi-medicacion/hoy` · `GET /api/mi-medicacion/agenda` · `POST /api/mi-medicacion/confirmar` · `GET /api/mis-citas` · `GET /api/mis-citas/:id/hoja` | tablet | La persona y su medicación |
 | `GET /api/voces` · `GET /api/voces/:id/muestra` | tablet | Voces ofrecidas y muestra en la velocidad y el trato de la persona |
 | `WS /api/conversacion/ws` → `{"tipo":"audio",…}` | tablet | Turno hablado (ver `voz/turnoVoz.ts`) |
 | `GET /tablet` | — | Prototipo web de la app del acompañante |

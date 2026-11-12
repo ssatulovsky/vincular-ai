@@ -67,7 +67,10 @@ export const rutasAdministracion =
           esCuidador: z.boolean().default(false),
           prioridadEmergencia: z.number().int().min(1).max(10).optional(),
           // La persona decide qué ve cada contacto; por defecto, nada.
-          permisos: z.object({ resumen_bienestar: z.boolean().default(false) }).default({ resumen_bienestar: false }),
+          permisos: z
+            .object({ resumen_bienestar: z.boolean().default(false), avisos_medicacion: z.boolean().default(false), hoja_control: z.boolean().default(false) })
+            .strict()
+            .default({ resumen_bienestar: false, avisos_medicacion: false, hoja_control: false }),
         })
         .parse(req.body);
       const contactoId = await transaccion(app.bd, async (c) => {
