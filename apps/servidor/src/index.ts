@@ -1,5 +1,6 @@
 import { cargarConfig } from './config/config.ts';
 import { crearAplicacion, crearServidor } from './api/servidor.ts';
+import { Planificador } from './planificador.ts';
 
 const config = cargarConfig();
 if (!config.emergencia.verificados) {
@@ -11,9 +12,12 @@ if (config.tareasSinModelo.length) {
 const app = crearAplicacion(config);
 const servidor = await crearServidor(app);
 await servidor.listen({ port: config.puerto, host: config.host });
+const planificador = new Planificador(app, (m) => servidor.log.error(m));
+if (config.planificador) planificador.iniciar();
 
 for (const senal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(senal, () => {
+    planificador.detener();
     void servidor.close().then(() => app.bd.end()).then(() => process.exit(0));
   });
 }

@@ -17,6 +17,8 @@ import { rutasMemoria } from './rutas/memoria.ts';
 import { rutasCostos } from './rutas/costos.ts';
 import { cargarPrecios, type TablaPrecios } from '../costos/costos.ts';
 import { rutasVoz } from './rutas/voz.ts';
+import { rutasMedicacion } from './rutas/medicacion.ts';
+import { TabletsConectadas } from '../tablets.ts';
 import { rutasTablet } from './rutas/tablet.ts';
 import { readFileSync } from 'node:fs';
 import { ServiciosVoz, validarCatalogo, type CatalogoVoces } from '@vincular/voz';
@@ -30,6 +32,7 @@ export interface Aplicacion {
   precios: TablaPrecios;
   voz: ServiciosVoz;
   catalogoVoces: CatalogoVoces;
+  tablets: TabletsConectadas;
   /** Extracciones de memoria en curso (para esperar al cerrar y en pruebas). */
   tareasPendientes: Set<Promise<unknown>>;
 }
@@ -63,6 +66,8 @@ export function crearAplicacion(config: Config, bd: Bd = crearPool(config.databa
   const cifrador = new Cifrador(config.claveCifrado);
   const modelos = new ModelosPorTarea(config.ia);
   const orquestador = new Orquestador({ bd, cifrador, modelos, emergencia: config.emergencia, esperaClasificadorMs: config.esperaClasificadorMs });
+  const voz = new ServiciosVoz(config.voz.servicios);
+  const catalogoVoces = validarCatalogo(JSON.parse(readFileSync(config.voz.catalogo, 'utf8')));
   return {
     config,
     bd,
@@ -70,8 +75,9 @@ export function crearAplicacion(config: Config, bd: Bd = crearPool(config.databa
     modelos,
     orquestador,
     precios: cargarPrecios(config.rutaPrecios),
-    voz: new ServiciosVoz(config.voz.servicios),
-    catalogoVoces: validarCatalogo(JSON.parse(readFileSync(config.voz.catalogo, 'utf8'))),
+    voz,
+    catalogoVoces,
+    tablets: new TabletsConectadas({ bd, voz, catalogo: catalogoVoces, emergencia: config.emergencia }),
     tareasPendientes: new Set(),
   };
 }
@@ -116,6 +122,7 @@ export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
   await f.register(rutasMemoria(app));
   await f.register(rutasCostos(app));
   await f.register(rutasVoz(app));
+  await f.register(rutasMedicacion(app));
   await f.register(rutasTablet(app));
   return f;
 }

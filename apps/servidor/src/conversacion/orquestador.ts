@@ -17,6 +17,8 @@ import { ESPECIFICACIONES, ejecutarHerramienta } from './herramientas.ts';
 import { construirInstrucciones, correccionParaRegenerar } from './instrucciones.ts';
 import { llamarModelo, type AmbitoUso } from './llamadas.ts';
 import { planVigente, umbralesDelPlan, type PlanTerapeutico } from './plan.ts';
+import { diaLocal, dosisEntre } from '../medicacion/agenda.ts';
+import { citasProximas } from '../medicacion/citas.ts';
 import { contextoPersona, insertarTurno, leerSesion, turnosDeSesion, type ContextoPersona, type OrigenTurno } from './repositorio.ts';
 
 export interface DependenciasOrquestador {
@@ -61,6 +63,22 @@ interface EstadoTurno {
   historial: Array<{ hablante: 'persona' | 'agente'; texto: string }>;
   ambito: AmbitoUso;
   reporteAgente: { nivel: NivelRiesgo; motivo: string } | null;
+  salud: ContextoSalud;
+}
+
+interface ContextoSalud {
+  remediosHoy: Array<{ hora: string; nombre: string; propositoSimple: string | null; estado: string }>;
+  proximaCita: { fecha: Date; lugar: string } | null;
+}
+
+/** Remedios de hoy y próxima cita, para que el agente acompañe la rutina sin dar indicaciones. */
+async function contextoSalud(bd: Bd, c: Cifrador, personaId: string, ahora: Date): Promise<ContextoSalud> {
+  const { desde, hasta } = await diaLocal(bd, personaId, ahora);
+  const [dosis, citas] = await Promise.all([dosisEntre(bd, c, personaId, desde, hasta), citasProximas(bd, c, personaId, ahora, 14)]);
+  return {
+    remediosHoy: dosis.map((d) => ({ hora: d.hora, nombre: d.nombre, propositoSimple: d.propositoSimple, estado: d.estado })),
+    proximaCita: citas[0] ? { fecha: citas[0].fecha, lugar: citas[0].lugar } : null,
+  };
 }
 
 /**
@@ -102,10 +120,12 @@ export class Orquestador {
     if (sesion.fin) throw new ErrorConversacion('La sesión está cerrada', 409);
 
     const turnoPersonaId = await insertarTurno(bd, cifrador, sesionId, personaId, 'persona', texto, 'persona');
-    const [ctx, planV, turnos] = await Promise.all([
+    const ahora = this.d.ahora?.() ?? new Date();
+    const [ctx, planV, turnos, salud] = await Promise.all([
       contextoPersona(bd, cifrador, personaId),
       planVigente(bd, cifrador, personaId),
       turnosDeSesion(bd, cifrador, sesionId),
+      contextoSalud(bd, cifrador, personaId, ahora),
     ]);
     const plan = planV?.contenido ?? null;
     const e: EstadoTurno = {
@@ -119,6 +139,7 @@ export class Orquestador {
       historial: turnos.filter((t) => t.id !== turnoPersonaId).map((t) => ({ hablante: t.hablante, texto: t.texto })),
       ambito: { personaId, sesionId },
       reporteAgente: null,
+      salud,
     };
 
     // 1. Reglas: síncronas, antes de generar.
@@ -204,6 +225,8 @@ export class Orquestador {
       categoriasRiesgo: categoriasEfectivas,
       modoEmergencia,
       ahora: this.d.ahora?.() ?? new Date(),
+      remediosHoy: e.salud.remediosHoy,
+      proximaCita: e.salud.proximaCita,
     });
 
     let correccion = '';
@@ -253,6 +276,7 @@ export class Orquestador {
       sesionId: e.sesionId,
       dispositivoId: e.dispositivoId,
       turnoPersonaId: e.turnoPersonaId,
+      ahora: () => this.d.ahora?.() ?? new Date(),
       alReportarRiesgo: (nivel: NivelRiesgo, motivo: string) => {
         if (!e.reporteAgente || nivel > e.reporteAgente.nivel) e.reporteAgente = { nivel, motivo };
       },

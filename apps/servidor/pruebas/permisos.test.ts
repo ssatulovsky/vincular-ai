@@ -13,13 +13,13 @@ const tablet: Actor = { tipo: 'dispositivo', id: 'd', personaId: P };
 const TODAS: Accion[] = [
   'cuenta.crear', 'persona.crear', 'persona.ver_ficha', 'dispositivo.crear', 'asignacion.gestionar', 'perfil_companero.editar',
   'plan.leer', 'plan.editar', 'alertas.leer', 'alertas.acusar', 'transcripcion.leer', 'resumen_bienestar.leer', 'conversacion.usar',
-  'memoria.propia', 'memoria.ver', 'costos.ver',
+  'memoria.propia', 'memoria.ver', 'costos.ver', 'medicacion.gestionar', 'salud.propia', 'hoja_control.ver',
 ];
 
 describe('permisos', () => {
   it('un familiar NUNCA ve transcripciones, planes ni alertas, aunque tenga todos los permisos', () => {
     const ctx: Contexto = { asignado: true, esSuContacto: true, permisosContacto: { resumen_bienestar: true, transcripciones: true, todo: true } };
-    for (const a of TODAS.filter((x) => x !== 'resumen_bienestar.leer')) expect(decidirPermiso(familiar, a, P, ctx), a).toBe(false);
+    for (const a of TODAS.filter((x) => x !== 'resumen_bienestar.leer' && x !== 'hoja_control.ver')) expect(decidirPermiso(familiar, a, P, ctx), a).toBe(false);
   });
 
   it('un familiar ve el resumen de bienestar solo si la persona lo autorizó', () => {
@@ -33,7 +33,7 @@ describe('permisos', () => {
   });
 
   it('la tablet conversa, maneja su memoria y su compañero, y nada más; solo como su propia persona', () => {
-    const propias: Accion[] = ['conversacion.usar', 'memoria.propia', 'perfil_companero.editar'];
+    const propias: Accion[] = ['conversacion.usar', 'memoria.propia', 'perfil_companero.editar', 'salud.propia', 'hoja_control.ver'];
     for (const a of TODAS) expect(decidirPermiso(tablet, a, P, asignado), a).toBe(propias.includes(a));
     for (const a of propias) expect(decidirPermiso(tablet, a, OTRA, asignado), a).toBe(false);
   });
@@ -45,6 +45,20 @@ describe('permisos', () => {
     expect(decidirPermiso(personal('guardia'), 'memoria.ver', P, asignado)).toBe(false);
     expect(decidirPermiso(personal('admin_plataforma'), 'memoria.ver', P, asignado)).toBe(false);
     expect(decidirPermiso(familiar, 'memoria.ver', P, { asignado: true, esSuContacto: true, permisosContacto: { resumen_bienestar: true } })).toBe(false);
+  });
+
+  it('la medicación la gestionan los clínicos asignados; nunca el administrador, la guardia ni el familiar', () => {
+    for (const rol of ['supervisor_clinico', 'enfermera_enlace', 'gerontologo'] as const) {
+      expect(decidirPermiso(personal(rol), 'medicacion.gestionar', P, asignado)).toBe(true);
+      expect(decidirPermiso(personal(rol), 'medicacion.gestionar', P, noAsignado)).toBe(false);
+    }
+    for (const rol of ['admin_plataforma', 'guardia'] as const) expect(decidirPermiso(personal(rol), 'medicacion.gestionar', P, asignado)).toBe(false);
+    expect(decidirPermiso(familiar, 'medicacion.gestionar', P, { asignado: true, esSuContacto: true, permisosContacto: { hoja_control: true } })).toBe(false);
+  });
+
+  it('el familiar ve la hoja del control solo si la persona lo autorizó', () => {
+    expect(decidirPermiso(familiar, 'hoja_control.ver', P, { asignado: false, esSuContacto: true, permisosContacto: { hoja_control: true } })).toBe(true);
+    expect(decidirPermiso(familiar, 'hoja_control.ver', P, { asignado: false, esSuContacto: true, permisosContacto: { resumen_bienestar: true } })).toBe(false);
   });
 
   it('solo el administrador ve los costos', () => {

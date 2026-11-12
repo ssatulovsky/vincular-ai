@@ -133,7 +133,7 @@ describe('herramientas de memoria del agente', () => {
   beforeAll(async () => {
     sesionId = await abrirSesion(e.app.bd, e.ids.persona, null, 'persona', 'texto');
     const turno = await insertarTurno(e.app.bd, e.app.cifrador, sesionId, e.ids.persona, 'persona', 'Me encanta el jardín', 'persona');
-    ambito = { bd: e.app.bd, cifrador: e.app.cifrador, modelos: e.app.modelos, personaId: e.ids.persona, sesionId, dispositivoId: null, turnoPersonaId: turno, alReportarRiesgo: () => undefined };
+    ambito = { bd: e.app.bd, cifrador: e.app.cifrador, modelos: e.app.modelos, personaId: e.ids.persona, sesionId, dispositivoId: null, turnoPersonaId: turno, ahora: () => new Date(), alReportarRiesgo: () => undefined };
   });
 
   it('guardar, recordar, confirmar, corregir, marcar privado y olvidar', async () => {

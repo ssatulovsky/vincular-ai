@@ -84,6 +84,7 @@ export const rutasConversacion =
     f.get('/api/conversacion/ws', { websocket: true }, (socket) => {
       let actor: ActorDispositivo | null = null;
       let sesionId: string | null = null;
+      let desregistrar: (() => void) | null = null;
       const enviar = (m: unknown) => socket.readyState === socket.OPEN && socket.send(JSON.stringify(m));
       const plazoAuth = setTimeout(() => socket.close(4401, 'sin autenticar'), 10_000);
 
@@ -113,6 +114,8 @@ export const rutasConversacion =
             actor = a;
             const s = await abrir(app, a, m.canal);
             sesionId = s.sesionId;
+            // Desde aquí el servidor puede tomar la iniciativa (recordatorios de medicación).
+            desregistrar = app.tablets.registrar(a.personaId, enviar);
             return enviar({ tipo: 'sesion', sesionId, modoEmergencia: s.modoEmergencia, emergencia: { samu: app.config.emergencia.samu, prevencionSuicidio: app.config.emergencia.prevencionSuicidio } });
           }
           if (!actor || !sesionId) return enviar({ tipo: 'error', error: 'Debe autenticarse primero' });
@@ -141,6 +144,9 @@ export const rutasConversacion =
         }
       });
 
-      socket.on('close', () => clearTimeout(plazoAuth));
+      socket.on('close', () => {
+        clearTimeout(plazoAuth);
+        desregistrar?.();
+      });
     });
   };

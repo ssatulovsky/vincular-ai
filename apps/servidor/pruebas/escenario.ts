@@ -33,6 +33,8 @@ export function configDePrueba(extra: Partial<Config> = {}): Config {
     emergencia: { ...CONTACTOS, verificados: false },
     rutaPrecios: new URL('../../../config/precios-modelos.json', import.meta.url).pathname,
     memoriaMinutosInactividad: 30,
+    medicacion: { segundoAvisoMin: 30, sinRespuestaMin: 30, vencimientoMin: 60 },
+    planificador: false,
     // Proveedores de voz inalcanzables (puerto cerrado): se prueban los caminos sin voz.
     voz: {
       catalogo: new URL('../../../config/voz/voces.json', import.meta.url).pathname,
@@ -54,7 +56,7 @@ export interface Escenario {
   f: FastifyInstance;
   owner: ReturnType<typeof crearPool>;
   tokens: { admin: string; supervisor: string; enfermera: string; supervisorAjeno: string; guardia: string; familiar: string; dispositivo: string; dispositivoAjeno: string };
-  ids: { persona: string; personaAjena: string; supervisor: string; contacto: string };
+  ids: { persona: string; personaAjena: string; supervisor: string; enfermera: string; contacto: string };
   cerrar(): Promise<void>;
 }
 
@@ -117,7 +119,7 @@ export async function crearEscenario(): Promise<Escenario> {
     f,
     owner,
     tokens: { admin, supervisor: supervisor.token, enfermera: enfermera.token, supervisorAjeno: supervisorAjeno.token, guardia: guardia.token, familiar: await ingresar(emailFamiliar), dispositivo, dispositivoAjeno },
-    ids: { persona, personaAjena, supervisor: supervisor.id, contacto },
+    ids: { persona, personaAjena, supervisor: supervisor.id, enfermera: enfermera.id, contacto },
     async cerrar() {
       await Promise.allSettled([...app.tareasPendientes]);
       await f.close();
