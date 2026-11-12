@@ -17,6 +17,12 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'voz',
+          include: ['paquetes/voz/pruebas/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
           name: 'servidor',
           include: ['apps/servidor/pruebas/**/*.test.ts'],
           globalSetup: ['apps/servidor/pruebas/preparacionGlobal.ts'],

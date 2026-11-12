@@ -12,7 +12,11 @@
     "riesgo:evaluar": "tsx src/cli/evaluarRiesgo.ts",
     "ia:modelos": "tsx src/cli/listarModelos.ts",
     "memoria:procesar": "tsx src/cli/procesarMemoria.ts",
-    "costos:reporte": "tsx src/cli/reporteCostos.ts"
+    "costos:reporte": "tsx src/cli/reporteCostos.ts",
+    "voz:prueba-ciega": "tsx src/cli/pruebaCiegaVoces.ts",
+    "voz:resultados": "tsx src/cli/resultadosPruebaCiega.ts",
+    "voz:voces": "tsx src/cli/buscarVoces.ts",
+    "voz:benchmark-stt": "tsx src/cli/benchmarkStt.ts"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",

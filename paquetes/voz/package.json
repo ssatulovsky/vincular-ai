@@ -1,0 +1,13 @@
+{
+  "name": "@vincular/voz",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Adaptador propio de voz: texto a voz y voz a texto con Google y ElevenLabs",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

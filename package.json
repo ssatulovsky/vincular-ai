@@ -21,7 +21,11 @@
     "db:migrar": "npm run db:migrar -w @vincular/servidor",
     "dev": "npm run dev -w @vincular/servidor",
     "memoria:procesar": "npm run memoria:procesar -w @vincular/servidor",
-    "costos:reporte": "npm run costos:reporte -w @vincular/servidor --"
+    "costos:reporte": "npm run costos:reporte -w @vincular/servidor --",
+    "voz:prueba-ciega": "npm run voz:prueba-ciega -w @vincular/servidor --",
+    "voz:resultados": "npm run voz:resultados -w @vincular/servidor --",
+    "voz:voces": "npm run voz:voces -w @vincular/servidor --",
+    "voz:benchmark-stt": "npm run voz:benchmark-stt -w @vincular/servidor --"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

@@ -1,0 +1,23 @@
+{
+  "descripcion": "Frases cotidianas para grabar con personas mayores (benchmark de reconocimiento). Se leen o, mejor, se dicen con palabras propias y luego se transcribe lo dicho. TODO(clinico): revisar junto con el co-diseño.",
+  "frases": [
+    "Buenos días, amanecí bien gracias a Dios",
+    "Hoy fui a la feria y compré paltas y tomates",
+    "Mi nieta Camila me vino a ver el domingo",
+    "Me tomé la pastilla de la presión después del desayuno",
+    "Anoche dormí poco porque me dolía la rodilla",
+    "El jueves tengo control en el CESFAM a las once",
+    "¿Me puede recordar que llame a mi hermana?",
+    "Estuve viendo la teleserie y después tomé once",
+    "El gato se volvió a subir al techo",
+    "No me acuerdo si me tomé el remedio de la mañana",
+    "Mi señora hacía unas empanadas de pino buenísimas",
+    "Me llamaron por teléfono preguntando por mi cuenta del banco",
+    "Hace frío, voy a prender la estufa",
+    "¿Qué día es hoy?",
+    "Quiero ir al club de adulto mayor el miércoles",
+    "Mi hijo vive en Santiago y me llama los sábados",
+    "Hoy estoy un poco triste, no sé por qué",
+    "Ya, gracias, hasta mañana"
+  ]
+}

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { esquemaPerfil } from '../../conversacion/perfil.ts';
+import { esquemaPerfil, guardarPerfil, leerPerfil } from '../../conversacion/perfil.ts';
+import { exigirVozOfrecida } from './voz.ts';
 import { borrarMemoria, confirmarHecho, corregirHecho, episodiosRecientes, exportarMemoria, listarHechos, marcarPrivado, olvidarHecho } from '../../memoria/hechos.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
 import { exigirPermiso, type Actor } from '../../seguridad/permisos.ts';
@@ -95,21 +96,15 @@ export const rutasMemoria =
     f.get('/api/mi-perfil-companero', async (req) => {
       const a = exigirPersona(exigirActor(req));
       await exigirPermiso(app.bd, a, 'perfil_companero.editar', a.personaId);
-      const r = await app.bd.query('SELECT nombre, personalidad, forma_de_hablar, trato, voz_id, avatar_id, rol_preferente FROM perfil_companero WHERE persona_id = $1', [a.personaId]);
-      return { perfil: r.rows[0] ?? null };
+      return { perfil: await leerPerfil(app.bd, a.personaId) };
     });
 
     f.put('/api/mi-perfil-companero', async (req) => {
       const a = exigirPersona(exigirActor(req));
       await exigirPermiso(app.bd, a, 'perfil_companero.editar', a.personaId);
       const p = esquemaPerfil.parse(req.body);
-      await app.bd.query(
-        `INSERT INTO perfil_companero (persona_id, nombre, personalidad, forma_de_hablar, trato, voz_id, avatar_id, rol_preferente)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (persona_id) DO UPDATE SET nombre = EXCLUDED.nombre, personalidad = EXCLUDED.personalidad, forma_de_hablar = EXCLUDED.forma_de_hablar,
-           trato = EXCLUDED.trato, voz_id = EXCLUDED.voz_id, avatar_id = EXCLUDED.avatar_id, rol_preferente = EXCLUDED.rol_preferente, actualizado_en = now()`,
-        [a.personaId, p.nombre, p.personalidad, p.forma_de_hablar, p.trato, p.voz_id, p.avatar_id, p.rol_preferente],
-      );
+      exigirVozOfrecida(app, p.voz_id);
+      await guardarPerfil(app.bd, a.personaId, p);
       await auditar(app.bd, a, { accion: 'perfil_companero.editar', recursoTipo: 'perfil_companero', recursoId: a.personaId, personaId: a.personaId, detalle: { via: 'persona' } });
       return { ok: true };
     });
