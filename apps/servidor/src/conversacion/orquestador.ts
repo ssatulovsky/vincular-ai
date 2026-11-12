@@ -19,6 +19,7 @@ import { llamarModelo, type AmbitoUso } from './llamadas.ts';
 import { planVigente, umbralesDelPlan, type PlanTerapeutico } from './plan.ts';
 import { diaLocal, dosisEntre } from '../medicacion/agenda.ts';
 import { citasProximas } from '../medicacion/citas.ts';
+import { iniciarEscalamiento } from '../escalamiento/motor.ts';
 import { contextoPersona, insertarTurno, leerSesion, turnosDeSesion, type ContextoPersona, type OrigenTurno } from './repositorio.ts';
 
 export interface DependenciasOrquestador {
@@ -28,6 +29,8 @@ export interface DependenciasOrquestador {
   emergencia: ContactosEmergencia;
   esperaClasificadorMs: number;
   ahora?: () => Date;
+  /** Se llama al iniciar una cadena de escalamiento, para ejecutarla de inmediato. */
+  alEscalar?: () => void;
 }
 
 export interface ResultadoTurno {
@@ -345,13 +348,16 @@ export class Orquestador {
     const medica = categorias.some((c) => CATEGORIAS_MEDICAS.includes(c));
     // TODO(Sprint 5): notificaciones push, SMS y llamada; cadena de contactos y plazo de acuse.
     // Mientras tanto el evento queda en la bandeja de alertas del panel clínico y de la guardia.
+    // El aviso a guardia, equipo y cuidadores lo hace la cadena de escalamiento (protocolo según
+    // nivel, categoría y horario). En nivel 3 el sistema guía a la persona y avisa a la guardia;
+    // no llama al SAMU por su cuenta.
     const accion =
       nivel === 3
-        ? `${entroEnEmergencia ? 'protocolo_emergencia' : 'emergencia_en_curso'}:${medica ? 'samu' : 'crisis'};bandeja_alertas`
-        : 'aviso_agente;bandeja_alertas';
-    await this.d.bd.query(
+        ? `${entroEnEmergencia ? 'protocolo_emergencia' : 'emergencia_en_curso'}:${medica ? 'guia_samu' : 'guia_crisis'};escalamiento;bandeja_alertas`
+        : 'aviso_agente;escalamiento;bandeja_alertas';
+    const ev = await this.d.bd.query<{ id: string }>(
       `INSERT INTO evento_riesgo (persona_id, sesion_id, evidencia_turno_ids, nivel, nivel_reglas, nivel_clasificador, fuente, categorias, detalle, fragmento_cifrado, accion, acuse_requerido)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true) RETURNING id`,
       [
         e.personaId,
         e.sesionId,
@@ -370,6 +376,9 @@ export class Orquestador {
         accion,
       ],
     );
+    await iniciarEscalamiento(this.d.bd, { personaId: e.personaId, tipoEvento: 'riesgo', nivel, categorias, eventoRiesgoId: ev.rows[0]!.id, ahora: this.d.ahora?.() ?? new Date() });
+    // Que el planificador no espere su próximo ciclo para avisar.
+    this.d.alEscalar?.();
   }
 }
 

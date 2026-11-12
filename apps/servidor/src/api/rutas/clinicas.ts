@@ -6,6 +6,7 @@ import { turnosDeSesion } from '../../conversacion/repositorio.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
 import { exigirPermiso } from '../../seguridad/permisos.ts';
 import { ErrorHttp, exigirActor, type Aplicacion } from '../servidor.ts';
+import { acusarPorEvento } from '../../escalamiento/motor.ts';
 
 const uuid = z.string().uuid();
 
@@ -84,6 +85,10 @@ export const rutasClinicas =
         const u = await c.query<{ acusado_en: Date }>('UPDATE evento_riesgo SET acusado_por = $2, acusado_en = now() WHERE id = $1 RETURNING acusado_en', [id, actor.id]);
         await auditar(c, actor, { accion: 'alerta.acuse', recursoTipo: 'evento_riesgo', recursoId: id, personaId: e.persona_id });
         return { acusadoEn: u.rows[0]!.acusado_en };
+      }).then(async (r) => {
+        // Acusar la alerta detiene su cadena de escalamiento.
+        await acusarPorEvento(app.bd, id, actor.id, new Date());
+        return r;
       });
     });
 
