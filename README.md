@@ -2,7 +2,7 @@
 
 Acompañante conversacional con supervisión clínica para personas mayores que viven solas. **Puente, no reemplazo**: el éxito se mide en menos soledad y más contacto humano, no en minutos de uso.
 
-> **Estado: Sprint 1 (base técnica).** Bucle conversacional por texto con orquestador, guardián y detector de riesgo; modelo de datos; autenticación y roles. Sin voz, sin tablet y **sin notificaciones** todavía: no usar con personas reales antes del Sprint 5. Ver `docs/decisiones/0001-sprint-1-base-tecnica.md`.
+> **Estado: Sprint 2 (memoria y personaje).** Sobre la base del Sprint 1 (bucle por texto con orquestador, guardián y detector de riesgo; autenticación y roles): memoria estructurada y episódica con extracción verificada por citas, "¿qué recuerdas de mí?", corregir, olvidar, privado, exportar y borrar; perfil del compañero que diseña la persona; costo por conversación y por persona al mes. Sin voz, sin tablet y **sin notificaciones** todavía: no usar con personas reales antes del Sprint 5. Ver `docs/decisiones/`.
 
 ## Estructura
 
@@ -38,6 +38,10 @@ CONTRASENA_NUEVA='...' npm run cli:crear-cuenta -w @vincular/servidor -- --email
 npm run dev
 ```
 
+### Precios de los modelos
+
+`config/precios-modelos.json` guarda el precio por millón de tokens de cada `proveedor/modelo`. Complételo con los precios vigentes de su contrato; sin precio, el reporte muestra tokens y deja el costo en `null`.
+
 ### Cambiar de proveedor de modelo
 
 Todo es configuración. Gemini en todo:
@@ -72,6 +76,16 @@ Cada ejecución crea una base de datos nueva, aplica las migraciones y la elimin
 4. Si no: el modelo genera (con herramientas) mientras el **clasificador de riesgo** corre en paralelo. El nivel final es el mayor entre reglas, clasificador y lo que reporte el agente.
 5. Toda respuesta del modelo pasa por el **guardián** (reglas + clasificador). Un reintento; si falla, respuesta segura.
 6. Se registran señales (nivel 1+), eventos con acuse requerido (nivel 2 y 3), intervenciones del guardián y uso de modelos (costo).
+7. Al cerrar la sesión (o tras `MEMORIA_MINUTOS_INACTIVIDAD` sin turnos, con `npm run memoria:procesar`) se extrae la memoria: hechos nuevos "por confirmar" con cita literal verificada, correcciones, resumen de la conversación con su embedding y temas pendientes.
+
+## Tareas periódicas
+
+Hasta el planificador del Sprint 8, programar con cron:
+
+```bash
+npm run memoria:procesar          # cada 5 minutos
+npm run costos:reporte -- 2026-11 # cuando se necesite
+```
 
 ## API (Sprint 1)
 
@@ -85,3 +99,7 @@ Cada ejecución crea una base de datos nueva, aplica las migraciones y la elimin
 | `GET /api/alertas` · `GET /api/alertas/:id` · `POST /api/alertas/:id/acuse` | clínicos asignados, guardia | Bandeja de niveles 2 y 3 |
 | `GET /api/personas/:id/sesiones/:sid/transcripcion?motivo=` | supervisor asignado | Solo con motivo clínico, auditado |
 | `POST /api/conversacion/sesiones` · `…/:id/turnos` · `…/:id/cerrar` · `WS /api/conversacion/ws` | tablet | Conversación |
+| `GET /api/mi-memoria` · `PATCH/DELETE /api/mi-memoria/hechos/:id` · `GET /api/mi-memoria/exportar` · `DELETE /api/mi-memoria` | tablet | La persona ve, corrige, confirma, marca privado, olvida, exporta y borra su memoria |
+| `GET/PUT /api/mi-perfil-companero` | tablet | La persona diseña su compañero |
+| `GET /api/personas/:id/memoria` | clínicos asignados | Memoria de la persona (auditado) |
+| `GET /api/costos?mes=AAAA-MM` · `GET /api/costos/sesiones/:id` | admin | Costo por persona al mes y por conversación |

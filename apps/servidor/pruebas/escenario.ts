@@ -18,7 +18,7 @@ export const CONTACTOS = { samu: '131', prevencionSuicidio: '*4141' };
  */
 export function configDePrueba(extra: Partial<Config> = {}): Config {
   const tareas = Object.fromEntries(
-    (['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes'] as Tarea[]).map((t) => [t, { proveedor: 'gemini', modelo: 'modelo-inalcanzable', timeoutMs: 1500 }]),
+    (['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'] as Tarea[]).map((t) => [t, { proveedor: 'gemini', modelo: 'modelo-inalcanzable', timeoutMs: 1500 }]),
   ) as Config['ia']['tareas'];
   return {
     entorno: 'test',
@@ -31,6 +31,8 @@ export function configDePrueba(extra: Partial<Config> = {}): Config {
     esperaClasificadorMs: 2000,
     sesionAccesoHoras: 12,
     emergencia: { ...CONTACTOS, verificados: false },
+    rutaPrecios: new URL('../../../config/precios-modelos.json', import.meta.url).pathname,
+    memoriaMinutosInactividad: 30,
     ...extra,
   };
 }
@@ -50,7 +52,7 @@ export function correo(prefijo: string): string {
 
 export async function pedir<T = Record<string, unknown>>(
   f: FastifyInstance,
-  metodo: 'GET' | 'POST' | 'PUT',
+  metodo: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   url: string,
   token?: string,
   cuerpo?: unknown,
@@ -105,6 +107,7 @@ export async function crearEscenario(): Promise<Escenario> {
     tokens: { admin, supervisor: supervisor.token, enfermera: enfermera.token, supervisorAjeno: supervisorAjeno.token, guardia: guardia.token, familiar: await ingresar(emailFamiliar), dispositivo, dispositivoAjeno },
     ids: { persona, personaAjena, supervisor: supervisor.id, contacto },
     async cerrar() {
+      await Promise.allSettled([...app.tareasPendientes]);
       await f.close();
       await app.bd.end();
       await owner.end();

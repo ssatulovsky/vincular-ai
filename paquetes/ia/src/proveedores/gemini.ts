@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { esquemaParaGemini, pedirJson } from '../http.ts';
-import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type PeticionModelo, type RespuestaModelo } from '../tipos.ts';
+import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type PeticionEmbeddings, type PeticionModelo, type RespuestaEmbeddings, type RespuestaModelo } from '../tipos.ts';
 
 interface Parte {
   text?: string;
@@ -95,6 +95,29 @@ export class ModeloGemini implements ModeloIA {
     return { tipo: 'texto', texto, uso };
   }
 
+  async incrustar(p: PeticionEmbeddings): Promise<RespuestaEmbeddings> {
+    const modelo = `models/${this.o.modelo}`;
+    const datos = (await pedirJson('gemini', `${this.o.url ?? URL_GEMINI}/${modelo}:batchEmbedContents`, {
+      cabeceras: { 'x-goog-api-key': this.o.apiKey },
+      timeoutMs: this.o.timeoutMs ?? 30_000,
+      senal: p.senal,
+      cuerpo: {
+        requests: p.textos.map((t) => ({
+          model: modelo,
+          content: { parts: [{ text: t }] },
+          taskType: p.uso === 'documento' ? 'RETRIEVAL_DOCUMENT' : 'RETRIEVAL_QUERY',
+          outputDimensionality: p.dimension,
+        })),
+      },
+    })) as { embeddings?: Array<{ values?: number[] }> };
+    const vectores = (datos.embeddings ?? []).map((e) => e.values ?? []);
+    if (vectores.length !== p.textos.length || vectores.some((v) => v.length !== p.dimension)) {
+      throw new ErrorProveedor('gemini', `Embeddings con forma inesperada (se esperaban ${p.textos.length} de dimensión ${p.dimension})`);
+    }
+    // Con dimensión reducida Gemini no entrega vectores normalizados: se normalizan para usar distancia coseno.
+    return { vectores: vectores.map(normalizarVector), uso: { tokensEntrada: 0, tokensSalida: 0 } };
+  }
+
   async listarModelos(): Promise<string[]> {
     const datos = (await pedirJson('gemini', `${this.o.url ?? URL_GEMINI}/models?pageSize=200`, {
       metodo: 'GET',
@@ -102,7 +125,12 @@ export class ModeloGemini implements ModeloIA {
       timeoutMs: this.o.timeoutMs ?? 30_000,
     })) as { models?: Array<{ name: string; supportedGenerationMethods?: string[] }> };
     return (datos.models ?? [])
-      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+      .filter((m) => m.supportedGenerationMethods?.some((x) => x === 'generateContent' || x === 'embedContent'))
       .map((m) => m.name.replace(/^models\//, ''));
   }
+}
+
+function normalizarVector(v: number[]): number[] {
+  const n = Math.hypot(...v);
+  return n > 0 ? v.map((x) => x / n) : v;
 }

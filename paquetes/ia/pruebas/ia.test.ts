@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ErrorProveedor, ModelosPorTarea, crearModelo, extraerObjetoJson, type ConfigModeloTarea, type Tarea } from '../src/index.ts';
 
-const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes'];
+const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'];
 
 describe('extraerObjetoJson', () => {
   it('lee JSON con o sin cercas de código', () => {
@@ -68,4 +68,20 @@ describe.runIf(real)('proveedores reales', () => {
     });
     expect(h.tipo).toBe('herramientas');
   }, 120_000);
+
+  const modeloEmb = process.env.IA_MODELO_PRUEBA_EMBEDDINGS;
+  it.runIf(Boolean(process.env.GEMINI_API_KEY && modeloEmb))('gemini entrega embeddings normalizados de la dimensión pedida', async () => {
+    const m = crearModelo({ proveedor: 'gemini', modelo: modeloEmb!, timeoutMs: 60_000 }, process.env.GEMINI_API_KEY!);
+    const r = await m.incrustar({ textos: ['Su nieta Camila vive en Temuco', 'le gusta el jardín'], uso: 'documento', dimension: 768 });
+    expect(r.vectores).toHaveLength(2);
+    expect(r.vectores[0]).toHaveLength(768);
+    expect(Math.hypot(...r.vectores[0]!)).toBeCloseTo(1, 5);
+  }, 60_000);
+});
+
+describe('embeddings', () => {
+  it('Claude no ofrece embeddings y lo dice con un error claro', async () => {
+    const m = crearModelo({ proveedor: 'anthropic', modelo: 'x', timeoutMs: 1000 }, 'k');
+    await expect(m.incrustar({ textos: ['hola'], uso: 'consulta', dimension: 768 })).rejects.toThrow(/no ofrece embeddings/);
+  });
 });

@@ -1,11 +1,13 @@
 import type { Bd, Consultable } from '../db/conexion.ts';
 import { transaccion } from '../db/conexion.ts';
 import type { Cifrador } from '../seguridad/cifrado.ts';
+import { episodiosRecientes, listarHechos, type Episodio, type Hecho } from '../memoria/hechos.ts';
 import { esquemaPerfil, PERFIL_POR_DEFECTO, type PerfilCompanero } from './perfil.ts';
 
 export interface SesionConversacion {
   id: string;
   personaId: string;
+  dispositivoId: string | null;
   fin: Date | null;
   nivelMaximo: number;
   modoEmergencia: boolean;
@@ -23,12 +25,12 @@ export async function abrirSesion(bd: Consultable, personaId: string, dispositiv
 }
 
 export async function leerSesion(bd: Consultable, sesionId: string): Promise<SesionConversacion | null> {
-  const r = await bd.query<{ id: string; persona_id: string; fin: Date | null; nivel_maximo: number; modo_emergencia: boolean; categorias_emergencia: string[] }>(
-    'SELECT id, persona_id, fin, nivel_maximo, modo_emergencia, categorias_emergencia FROM sesion_conversacion WHERE id = $1',
+  const r = await bd.query<{ id: string; persona_id: string; dispositivo_id: string | null; fin: Date | null; nivel_maximo: number; modo_emergencia: boolean; categorias_emergencia: string[] }>(
+    'SELECT id, persona_id, dispositivo_id, fin, nivel_maximo, modo_emergencia, categorias_emergencia FROM sesion_conversacion WHERE id = $1',
     [sesionId],
   );
   const f = r.rows[0];
-  return f ? { id: f.id, personaId: f.persona_id, fin: f.fin, nivelMaximo: f.nivel_maximo, modoEmergencia: f.modo_emergencia, categoriasEmergencia: f.categorias_emergencia } : null;
+  return f ? { id: f.id, personaId: f.persona_id, dispositivoId: f.dispositivo_id, fin: f.fin, nivelMaximo: f.nivel_maximo, modoEmergencia: f.modo_emergencia, categoriasEmergencia: f.categorias_emergencia } : null;
 }
 
 /** Inserta un turno con el siguiente número de orden, serializado por sesión. */
@@ -55,22 +57,23 @@ export async function turnosDeSesion(bd: Consultable, cifrador: Cifrador, sesion
 export interface ContextoPersona {
   nombre: string;
   perfil: PerfilCompanero;
-  hechos: Array<{ capa: string; contenido: string }>;
+  hechos: Hecho[];
+  /** Conversaciones recientes, para dar continuidad. */
+  episodios: Episodio[];
 }
 
 export async function contextoPersona(bd: Consultable, cifrador: Cifrador, personaId: string): Promise<ContextoPersona> {
   const p = await bd.query<{ nombre_cifrado: Buffer }>('SELECT nombre_cifrado FROM persona WHERE id = $1', [personaId]);
   if (!p.rows[0]) throw new Error('Persona inexistente');
   const perfil = await bd.query('SELECT nombre, personalidad, forma_de_hablar, trato, voz_id, avatar_id, rol_preferente FROM perfil_companero WHERE persona_id = $1', [personaId]);
-  const hechos = await bd.query<{ capa: string; contenido_cifrado: Buffer }>(
-    'SELECT capa, contenido_cifrado FROM hecho_memoria WHERE persona_id = $1 AND vigente ORDER BY actualizado_en DESC LIMIT 60',
-    [personaId],
-  );
+  const [hechos, episodios] = await Promise.all([listarHechos(bd, cifrador, personaId, { incluirPrivados: true }), episodiosRecientes(bd, cifrador, personaId, 3)]);
   // Primer nombre: suficiente para conversar y no expone el nombre completo al proveedor.
   const nombre = cifrador.descifrar(p.rows[0].nombre_cifrado).trim().split(/\s+/)[0] ?? '';
   return {
     nombre,
     perfil: perfil.rows[0] ? esquemaPerfil.parse(perfil.rows[0]) : PERFIL_POR_DEFECTO,
-    hechos: hechos.rows.map((h) => ({ capa: h.capa, contenido: cifrador.descifrar(h.contenido_cifrado) })),
+    // Tope para no inflar las instrucciones: lo demás se encuentra con memoria_buscar.
+    hechos: hechos.slice(0, 80),
+    episodios,
   };
 }

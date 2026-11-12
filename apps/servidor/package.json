@@ -10,7 +10,9 @@
     "db:migrar": "tsx src/db/migrar.ts",
     "cli:crear-cuenta": "tsx src/cli/crearCuenta.ts",
     "riesgo:evaluar": "tsx src/cli/evaluarRiesgo.ts",
-    "ia:modelos": "tsx src/cli/listarModelos.ts"
+    "ia:modelos": "tsx src/cli/listarModelos.ts",
+    "memoria:procesar": "tsx src/cli/procesarMemoria.ts",
+    "costos:reporte": "tsx src/cli/reporteCostos.ts"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",

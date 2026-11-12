@@ -8,7 +8,7 @@ import type { ContactosEmergencia } from '@vincular/seguridad-clinica';
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 const proveedor = z.enum(['gemini', 'anthropic']);
-const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes'];
+const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'];
 
 const esquemaEntorno = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -26,6 +26,9 @@ const esquemaEntorno = z.object({
   RIESGO_ESPERA_CLASIFICADOR_MS: z.coerce.number().int().positive().default(4000),
   SESION_ACCESO_HORAS: z.coerce.number().int().positive().default(12),
   PROTOCOLO_EMERGENCIA: z.string().default(path.join(RAIZ, 'config/protocolo-emergencia.json')),
+  PRECIOS_MODELOS: z.string().default(path.join(RAIZ, 'config/precios-modelos.json')),
+  // Minutos sin turnos nuevos para considerar terminada una sesión y extraer su memoria.
+  MEMORIA_MINUTOS_INACTIVIDAD: z.coerce.number().int().positive().default(30),
 });
 
 const esquemaTarea = z.object({
@@ -42,7 +45,7 @@ const esquemaProtocolo = z.object({
   }),
 });
 
-const TIMEOUT_POR_DEFECTO: Record<Tarea, number> = { conversacion: 30_000, guardian: 10_000, riesgo: 10_000, extraccion: 30_000, informes: 120_000 };
+const TIMEOUT_POR_DEFECTO: Record<Tarea, number> = { conversacion: 30_000, guardian: 10_000, riesgo: 10_000, extraccion: 30_000, informes: 120_000, embeddings: 15_000 };
 
 export interface Config {
   entorno: 'development' | 'test' | 'production';
@@ -56,6 +59,8 @@ export interface Config {
   esperaClasificadorMs: number;
   sesionAccesoHoras: number;
   emergencia: ContactosEmergencia & { verificados: boolean };
+  rutaPrecios: string;
+  memoriaMinutosInactividad: number;
 }
 
 export function cargarConfig(entorno: NodeJS.ProcessEnv = process.env): Config {
@@ -103,6 +108,8 @@ export function cargarConfig(entorno: NodeJS.ProcessEnv = process.env): Config {
     tareasSinModelo,
     esperaClasificadorMs: e.RIESGO_ESPERA_CLASIFICADOR_MS,
     sesionAccesoHoras: e.SESION_ACCESO_HORAS,
+    rutaPrecios: e.PRECIOS_MODELOS,
+    memoriaMinutosInactividad: e.MEMORIA_MINUTOS_INACTIVIDAD,
     emergencia: { samu: protocolo.numeros.samu.numero, prevencionSuicidio: protocolo.numeros.prevencionSuicidio.numero, verificados },
   };
 }

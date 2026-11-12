@@ -13,6 +13,9 @@ import { rutasAdministracion } from './rutas/administracion.ts';
 import { rutasAutenticacion } from './rutas/autenticacion.ts';
 import { rutasClinicas } from './rutas/clinicas.ts';
 import { rutasConversacion } from './rutas/conversacion.ts';
+import { rutasMemoria } from './rutas/memoria.ts';
+import { rutasCostos } from './rutas/costos.ts';
+import { cargarPrecios, type TablaPrecios } from '../costos/costos.ts';
 
 export interface Aplicacion {
   config: Config;
@@ -20,6 +23,9 @@ export interface Aplicacion {
   cifrador: Cifrador;
   modelos: ModelosPorTarea;
   orquestador: Orquestador;
+  precios: TablaPrecios;
+  /** Extracciones de memoria en curso (para esperar al cerrar y en pruebas). */
+  tareasPendientes: Set<Promise<unknown>>;
 }
 
 declare module 'fastify' {
@@ -51,7 +57,7 @@ export function crearAplicacion(config: Config, bd: Bd = crearPool(config.databa
   const cifrador = new Cifrador(config.claveCifrado);
   const modelos = new ModelosPorTarea(config.ia);
   const orquestador = new Orquestador({ bd, cifrador, modelos, emergencia: config.emergencia, esperaClasificadorMs: config.esperaClasificadorMs });
-  return { config, bd, cifrador, modelos, orquestador };
+  return { config, bd, cifrador, modelos, orquestador, precios: cargarPrecios(config.rutaPrecios), tareasPendientes: new Set() };
 }
 
 export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
@@ -90,5 +96,15 @@ export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
   await f.register(rutasAdministracion(app));
   await f.register(rutasClinicas(app));
   await f.register(rutasConversacion(app));
+  await f.register(rutasMemoria(app));
+  await f.register(rutasCostos(app));
   return f;
+}
+
+/** Lanza una tarea en segundo plano sin bloquear la respuesta; los errores quedan en el registro. */
+export function enSegundoPlano(app: Aplicacion, nombre: string, fn: () => Promise<unknown>): void {
+  const p = fn()
+    .catch((e: Error) => console.error(`[${nombre}] ${e.message}`))
+    .finally(() => app.tareasPendientes.delete(p));
+  app.tareasPendientes.add(p);
 }

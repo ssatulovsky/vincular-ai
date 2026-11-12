@@ -1,6 +1,9 @@
 import { ErrorProveedor, type ModelosPorTarea, type PeticionModelo, type RespuestaModelo, type Tarea } from '@vincular/ia';
 import type { Consultable } from '../db/conexion.ts';
 
+/** Dimensión fija de la columna vector(768) (migración 0002). */
+export const DIMENSION_EMBEDDINGS = 768;
+
 export interface AmbitoUso {
   personaId: string | null;
   sesionId: string | null;
@@ -33,6 +36,28 @@ export async function llamarModelo(
   } catch (e) {
     const detalle = e instanceof ErrorProveedor ? `${e.message}${e.estado ? ` (${e.estado})` : ''}` : (e as Error).message;
     await registrar(bd, tarea, modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), 0, 0, detalle).catch(() => undefined);
+    throw e;
+  }
+}
+
+/** Vectores para la memoria episódica, con registro de uso. */
+export async function incrustarTextos(
+  bd: Consultable,
+  modelos: ModelosPorTarea,
+  ambito: AmbitoUso,
+  textos: string[],
+  uso: 'documento' | 'consulta',
+): Promise<{ vectores: number[][]; proveedor: string; modelo: string }> {
+  const modelo = modelos.para('embeddings');
+  if (!modelo.modelo) throw new ErrorProveedor(modelo.proveedor, 'La tarea "embeddings" no tiene modelo configurado (IA_MODELO_EMBEDDINGS)');
+  const inicio = performance.now();
+  try {
+    const r = await modelo.incrustar({ textos, uso, dimension: DIMENSION_EMBEDDINGS });
+    const tokensAprox = Math.ceil(textos.join(' ').length / 4);
+    await registrar(bd, 'embeddings', modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), r.uso.tokensEntrada || tokensAprox, 0, null);
+    return { vectores: r.vectores, proveedor: modelo.proveedor, modelo: modelo.modelo };
+  } catch (e) {
+    await registrar(bd, 'embeddings', modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), 0, 0, (e as Error).message).catch(() => undefined);
     throw e;
   }
 }

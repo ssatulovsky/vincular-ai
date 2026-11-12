@@ -6,7 +6,7 @@
 export type Proveedor = 'gemini' | 'anthropic';
 
 /** Tareas con modelo propio (especificación, sección 5). */
-export type Tarea = 'conversacion' | 'guardian' | 'riesgo' | 'extraccion' | 'informes';
+export type Tarea = 'conversacion' | 'guardian' | 'riesgo' | 'extraccion' | 'informes' | 'embeddings';
 
 export interface EspecificacionHerramienta {
   nombre: string;
@@ -51,10 +51,25 @@ export interface PeticionModelo {
   senal?: AbortSignal;
 }
 
+export interface PeticionEmbeddings {
+  textos: string[];
+  /** Documento que se guarda o consulta que se busca: algunos proveedores optimizan cada caso. */
+  uso: 'documento' | 'consulta';
+  dimension: number;
+  senal?: AbortSignal;
+}
+
+export interface RespuestaEmbeddings {
+  vectores: number[][];
+  uso: UsoTokens;
+}
+
 export interface ModeloIA {
   readonly proveedor: Proveedor;
   readonly modelo: string;
   responder(p: PeticionModelo): Promise<RespuestaModelo>;
+  /** Vectores para la memoria episódica. Lanza ErrorProveedor si el proveedor no los ofrece. */
+  incrustar(p: PeticionEmbeddings): Promise<RespuestaEmbeddings>;
 }
 
 export class ErrorProveedor extends Error {

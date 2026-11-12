@@ -70,7 +70,7 @@ describe('configuración', () => {
     const c = cargarConfig({ ...base, IA_PROVEEDOR: 'gemini', IA_PROVEEDOR_GUARDIAN: 'anthropic', IA_MODELO_CONVERSACION: 'g', IA_MODELO_GUARDIAN: 'c' });
     expect(c.ia.tareas.conversacion).toMatchObject({ proveedor: 'gemini', modelo: 'g' });
     expect(c.ia.tareas.guardian).toMatchObject({ proveedor: 'anthropic', modelo: 'c' });
-    expect(c.tareasSinModelo).toEqual(['riesgo', 'extraccion', 'informes']);
+    expect(c.tareasSinModelo).toEqual(['riesgo', 'extraccion', 'informes', 'embeddings']);
   });
   it('rechaza una clave de cifrado inválida', () => {
     expect(() => cargarConfig({ ...base, CLAVE_CIFRADO: 'corta' })).toThrow(/CLAVE_CIFRADO/);

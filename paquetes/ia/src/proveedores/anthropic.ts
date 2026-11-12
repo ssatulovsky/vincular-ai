@@ -1,5 +1,5 @@
 import { pedirJson } from '../http.ts';
-import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type PeticionModelo, type RespuestaModelo } from '../tipos.ts';
+import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type PeticionModelo, type RespuestaEmbeddings, type RespuestaModelo } from '../tipos.ts';
 
 interface Bloque {
   type: string;
@@ -73,6 +73,11 @@ export class ModeloAnthropic implements ModeloIA {
       .map((b) => ({ id: b.id!, nombre: b.name!, entrada: b.input ?? {} }));
     if (llamadas.length > 0) return { tipo: 'herramientas', llamadas, ...(texto ? { texto } : {}), uso };
     return { tipo: 'texto', texto, uso };
+  }
+
+  /** La API de Anthropic no ofrece embeddings: configure IA_PROVEEDOR_EMBEDDINGS=gemini. */
+  async incrustar(): Promise<RespuestaEmbeddings> {
+    throw new ErrorProveedor('anthropic', 'Anthropic no ofrece embeddings; configure otro proveedor para la tarea "embeddings"');
   }
 
   async listarModelos(): Promise<string[]> {
