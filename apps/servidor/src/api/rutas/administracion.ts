@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { transaccion } from '../../db/conexion.ts';
 import { esquemaPerfil, guardarPerfil } from '../../conversacion/perfil.ts';
 import { exigirVozOfrecida } from './voz.ts';
+import { normalizarTelefono } from '../../escalamiento/telefonos.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
 import { hashContrasena } from '../../seguridad/autenticacion.ts';
 import { exigirPermiso } from '../../seguridad/permisos.ts';
@@ -73,10 +74,13 @@ export const rutasAdministracion =
             .default({ resumen_bienestar: false, avisos_medicacion: false, hoja_control: false }),
         })
         .parse(req.body);
+      // Teléfono en E.164: los avisos por SMS y llamada lo necesitan.
+      const telefono = b.telefono ? normalizarTelefono(b.telefono) : null;
+      if (b.telefono && !telefono) throw new ErrorHttp(400, 'Teléfono inválido (use +56…)');
       const contactoId = await transaccion(app.bd, async (c) => {
         const r = await c.query<{ id: string }>(
-          `INSERT INTO contacto (persona_id, nombre_cifrado, relacion, telefono_cifrado, es_cuidador, prioridad_emergencia, permisos) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-          [id, app.cifrador.cifrar(b.nombre), b.relacion, b.telefono ? app.cifrador.cifrar(b.telefono) : null, b.esCuidador, b.prioridadEmergencia ?? null, b.permisos],
+          `INSERT INTO contacto (persona_id, nombre_cifrado, relacion, telefono_cifrado, telefono_hash, es_cuidador, prioridad_emergencia, permisos) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+          [id, app.cifrador.cifrar(b.nombre), b.relacion, telefono ? app.cifrador.cifrar(telefono) : null, telefono ? app.escalamiento.hashes.hash(telefono) : null, b.esCuidador, b.prioridadEmergencia ?? null, b.permisos],
         );
         await auditar(c, actor, { accion: 'contacto.crear', recursoTipo: 'contacto', recursoId: r.rows[0]!.id, personaId: id, detalle: { permisos: b.permisos } });
         return r.rows[0]!.id;

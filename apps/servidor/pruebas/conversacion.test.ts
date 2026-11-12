@@ -72,10 +72,11 @@ describe('bucle conversacional', () => {
     const segunda = await abrir();
     expect(segunda.modoEmergencia).toBe(true);
 
-    const alertas = await pedir<{ alertas: Array<{ id: string; sesion_id: string }> }>(e.f, 'GET', '/api/alertas', e.tokens.guardia);
-    for (const a of alertas.datos.alertas) {
-      const acuse = await pedir(e.f, 'POST', `/api/alertas/${a.id}/acuse`, e.tokens.guardia, {});
-      expect(acuse.estado).toBe(200);
+    // Acusar una alerta detiene su cadena de escalamiento y acusa los eventos agrupados en ella.
+    for (let i = 0; i < 20; i++) {
+      const pendientes = (await pedir<{ alertas: Array<{ id: string }> }>(e.f, 'GET', '/api/alertas', e.tokens.guardia)).datos.alertas;
+      if (!pendientes.length) break;
+      expect((await pedir(e.f, 'POST', `/api/alertas/${pendientes[0]!.id}/acuse`, e.tokens.guardia, {})).estado).toBe(200);
     }
     expect((await abrir()).modoEmergencia).toBe(false);
   });

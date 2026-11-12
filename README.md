@@ -2,7 +2,9 @@
 
 Acompañante conversacional con supervisión clínica para personas mayores que viven solas. **Puente, no reemplazo**: el éxito se mide en menos soledad y más contacto humano, no en minutos de uso.
 
-> **Estado: Sprint 4 (enfermero digital).** Medicamentos registrados por el equipo de salud, recordatorios por voz con segundo aviso a los 30 min y aviso al cuidador autorizado (o al equipo) si no hay respuesta, confirmación por voz, pantalla o sin conexión, citas, preguntas para el control y hoja de una página. Las notificaciones se crean; su envío llega en el Sprint 5.
+> **Estado: Sprint 5 (escalamiento).** Niveles 0–3 de punta a punta: protocolos parametrizables por tipo, nivel, categoría, persona y horario; turnos de guardia; SMS y llamadas por Twilio; acuse por panel, SMS ("1") o llamada (tecla 1); la cadena avanza sola si nadie acusa o si los mensajes fallan. En nivel 3 el sistema guía a la persona y avisa a la guardia (no llama al SAMU).
+>
+> **Sprint 4 (enfermero digital).** Medicamentos registrados por el equipo de salud, recordatorios por voz con segundo aviso a los 30 min y aviso al cuidador autorizado (o al equipo) si no hay respuesta, confirmación por voz, pantalla o sin conexión, citas, preguntas para el control y hoja de una página. Las notificaciones se crean; su envío llega en el Sprint 5.
 >
 > **Sprint 3 (voz).** Turno hablado de punta a punta (voz a texto → orquestador con riesgo y guardián → texto a voz por frases) con Google y ElevenLabs intercambiables, latencia medida por etapa, prototipo web de la tablet en `/tablet`, prueba ciega de voces para el co-diseño y benchmark de reconocimiento con métrica de riesgos perdidos.
 >
@@ -123,6 +125,11 @@ npm run costos:reporte -- 2026-11 # cuando se necesite
 | `GET/POST /api/personas/:id/medicamentos` · `PUT …/:medId` · `POST …/:medId/suspender` · `GET /api/personas/:id/dosis` | equipo asignado | Medicación y adherencia |
 | `GET/POST /api/personas/:id/citas` · `POST …/:citaId/cancelar` · `GET …/:citaId/hoja` | equipo asignado (hoja: también familiar autorizado) | Citas y hoja para el control |
 | `GET /api/mi-medicacion/hoy` · `GET /api/mi-medicacion/agenda` · `POST /api/mi-medicacion/confirmar` · `GET /api/mis-citas` · `GET /api/mis-citas/:id/hoja` | tablet | La persona y su medicación |
+| `GET/POST /api/protocolos-escalamiento` · `PUT …/:id` | admin, supervisor | Protocolos (con motivo) |
+| `GET/POST /api/guardia/turnos` · `PUT …/:id` | admin, supervisor | Turnos de guardia |
+| `PUT /api/cuentas/:id/telefono` | admin | Teléfono del personal |
+| `GET /api/escalamientos` · `GET …/:id` · `POST …/:id/acuse` | guardia, equipo asignado | Cadenas en curso y acuse |
+| `POST /webhooks/twilio/sms` · `/llamada` · `/estado` | Twilio (firmado) | Respuestas y estados |
 | `GET /api/voces` · `GET /api/voces/:id/muestra` | tablet | Voces ofrecidas y muestra en la velocidad y el trato de la persona |
 | `WS /api/conversacion/ws` → `{"tipo":"audio",…}` | tablet | Turno hablado (ver `voz/turnoVoz.ts`) |
 | `GET /tablet` | — | Prototipo web de la app del acompañante |
