@@ -1,0 +1,10 @@
+{
+  "name": "@vincular/ia",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Adaptador propio de modelos de lenguaje (Gemini y Claude), configurable por tarea",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

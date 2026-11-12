@@ -1,0 +1,30 @@
+{
+  "name": "vincular-ia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vincular-IA: acompañante conversacional con supervisión clínica para personas mayores que viven solas",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "paquetes/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:riesgo": "vitest run --project seguridad-clinica",
+    "riesgo:evaluar": "npm run riesgo:evaluar -w @vincular/servidor",
+    "ia:modelos": "npm run ia:modelos -w @vincular/servidor",
+    "db:migrar": "npm run db:migrar -w @vincular/servidor",
+    "dev": "npm run dev -w @vincular/servidor"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "5.8",
+    "vitest": "^5.1.0"
+  }
+}

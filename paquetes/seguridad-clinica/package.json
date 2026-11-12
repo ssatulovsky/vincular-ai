@@ -1,0 +1,12 @@
+{
+  "name": "@vincular/seguridad-clinica",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Detector de riesgo y guardián: reglas deterministas, sin dependencias, usables en servidor y tablet",
+  "exports": {
+    ".": "./src/index.ts",
+    "./casos/riesgo": "./casos/riesgo.casos.json",
+    "./casos/guardian": "./casos/guardian.casos.json"
+  }
+}

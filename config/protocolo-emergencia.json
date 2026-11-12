@@ -1,0 +1,13 @@
+{
+  "descripcion": "Números y parámetros del protocolo de emergencia. NUNCA van en el prompt: el servidor los lee de aquí. Cada número debe verificarse contra la fuente oficial antes del lanzamiento; en producción el servidor no arranca si alguno tiene verificado=false.",
+  "numeros": {
+    "samu": { "numero": "131", "nombre": "SAMU", "verificado": false, "fuente": "Por verificar con MINSAL antes del lanzamiento" },
+    "prevencionSuicidio": { "numero": "*4141", "nombre": "Línea de prevención del suicidio (MINSAL)", "verificado": false, "fuente": "Por verificar con MINSAL antes del lanzamiento" },
+    "fonoMayor": { "numero": "", "nombre": "Fono Mayor SENAMA", "verificado": false, "fuente": "TODO: confirmar número vigente con SENAMA" }
+  },
+  "acuse": {
+    "minutosNivel2": null,
+    "minutosNivel3": null,
+    "nota": "TODO(clinico): plazo para que un humano confirme una alerta antes de escalar al siguiente contacto y a la guardia (Sprint 5)."
+  }
+}

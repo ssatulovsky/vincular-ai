@@ -1,0 +1,27 @@
+{
+  "name": "@vincular/servidor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "API, sesión conversacional y herramientas del agente",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "db:migrar": "tsx src/db/migrar.ts",
+    "cli:crear-cuenta": "tsx src/cli/crearCuenta.ts",
+    "riesgo:evaluar": "tsx src/cli/evaluarRiesgo.ts",
+    "ia:modelos": "tsx src/cli/listarModelos.ts"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.2"
+  },
+  "dependencies": {
+    "@fastify/rate-limit": "^11.2.2",
+    "@fastify/websocket": "^11.3.7",
+    "@node-rs/argon2": "^2.2.2",
+    "fastify": "^5.12.8",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  }
+}
