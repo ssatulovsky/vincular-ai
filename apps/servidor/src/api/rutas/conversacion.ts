@@ -5,7 +5,8 @@ import { ErrorConversacion } from '../../conversacion/orquestador.ts';
 import { actorDesdeToken } from '../../seguridad/autenticacion.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
 import type { Actor } from '../../seguridad/permisos.ts';
-import { ErrorHttp, exigirActor, type Aplicacion } from '../servidor.ts';
+import { ErrorHttp, enSegundoPlano, exigirActor, type Aplicacion } from '../servidor.ts';
+import { procesarSesion } from '../../memoria/extraccion.ts';
 
 type ActorDispositivo = Extract<Actor, { tipo: 'dispositivo' }>;
 
@@ -44,6 +45,8 @@ async function cerrar(app: Aplicacion, actor: ActorDispositivo, sesionId: string
     return { cerrada: false, motivo: 'emergencia_en_curso' };
   }
   await app.bd.query('UPDATE sesion_conversacion SET fin = coalesce(fin, now()) WHERE id = $1', [sesionId]);
+  // La memoria de la sesión se extrae en segundo plano; si falla, la retoma `memoria:procesar`.
+  enSegundoPlano(app, 'memoria', () => procesarSesion({ bd: app.bd, cifrador: app.cifrador, modelos: app.modelos }, sesionId));
   return { cerrada: true };
 }
 

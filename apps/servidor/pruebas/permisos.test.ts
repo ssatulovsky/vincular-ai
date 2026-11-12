@@ -13,6 +13,7 @@ const tablet: Actor = { tipo: 'dispositivo', id: 'd', personaId: P };
 const TODAS: Accion[] = [
   'cuenta.crear', 'persona.crear', 'persona.ver_ficha', 'dispositivo.crear', 'asignacion.gestionar', 'perfil_companero.editar',
   'plan.leer', 'plan.editar', 'alertas.leer', 'alertas.acusar', 'transcripcion.leer', 'resumen_bienestar.leer', 'conversacion.usar',
+  'memoria.propia', 'memoria.ver', 'costos.ver',
 ];
 
 describe('permisos', () => {
@@ -31,9 +32,24 @@ describe('permisos', () => {
     expect(decidirPermiso(familiar, 'resumen_bienestar.leer', OTRA, { asignado: false, esSuContacto: true, permisosContacto: { resumen_bienestar: true } })).toBe(false);
   });
 
-  it('la tablet solo conversa, y solo como su propia persona', () => {
-    for (const a of TODAS) expect(decidirPermiso(tablet, a, P, asignado), a).toBe(a === 'conversacion.usar');
-    expect(decidirPermiso(tablet, 'conversacion.usar', OTRA, asignado)).toBe(false);
+  it('la tablet conversa, maneja su memoria y su compañero, y nada más; solo como su propia persona', () => {
+    const propias: Accion[] = ['conversacion.usar', 'memoria.propia', 'perfil_companero.editar'];
+    for (const a of TODAS) expect(decidirPermiso(tablet, a, P, asignado), a).toBe(propias.includes(a));
+    for (const a of propias) expect(decidirPermiso(tablet, a, OTRA, asignado), a).toBe(false);
+  });
+
+  it('la memoria la ven los clínicos asignados, nunca el familiar, la guardia ni el administrador', () => {
+    expect(decidirPermiso(personal('supervisor_clinico'), 'memoria.ver', P, asignado)).toBe(true);
+    expect(decidirPermiso(personal('enfermera_enlace'), 'memoria.ver', P, asignado)).toBe(true);
+    expect(decidirPermiso(personal('supervisor_clinico'), 'memoria.ver', P, noAsignado)).toBe(false);
+    expect(decidirPermiso(personal('guardia'), 'memoria.ver', P, asignado)).toBe(false);
+    expect(decidirPermiso(personal('admin_plataforma'), 'memoria.ver', P, asignado)).toBe(false);
+    expect(decidirPermiso(familiar, 'memoria.ver', P, { asignado: true, esSuContacto: true, permisosContacto: { resumen_bienestar: true } })).toBe(false);
+  });
+
+  it('solo el administrador ve los costos', () => {
+    expect(decidirPermiso(personal('admin_plataforma'), 'costos.ver', null, noAsignado)).toBe(true);
+    for (const rol of ['supervisor_clinico', 'enfermera_enlace', 'gerontologo', 'guardia'] as const) expect(decidirPermiso(personal(rol), 'costos.ver', null, asignado)).toBe(false);
   });
 
   it('el administrador gestiona altas pero nunca contenido clínico', () => {

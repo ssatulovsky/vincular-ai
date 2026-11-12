@@ -22,7 +22,10 @@ export interface ContextoInstrucciones {
   nombrePersona: string;
   plan: PlanTerapeutico | null;
   preferencias: string[];
-  hechos: string[];
+  hechos: Array<{ contenido: string; privado: boolean }>;
+  /** Datos anotados por el sistema que la persona aún no ha confirmado. */
+  porConfirmar: Array<{ id: string; contenido: string }>;
+  episodios: Array<{ fecha: Date; resumen: string; temasPendientes: string[] }>;
   nivelRiesgo: NivelRiesgo;
   categoriasRiesgo: string[];
   modoEmergencia: boolean;
@@ -101,7 +104,14 @@ export function construirInstrucciones(c: ContextoInstrucciones): string {
 - Rol: ${ROL[p.rol_preferente]}
 - Personalidad: ${p.personalidad || 'cálida y paciente'}
 - Forma de hablar: ${p.forma_de_hablar || 'clara y sencilla'}`,
-    `# Lo que sabes de ${c.nombrePersona}\nÚsalo con naturalidad, sin recitarlo. Si algo parece cambiado, pregúntalo con tacto.\n${c.hechos.length ? c.hechos.map((x) => `- ${x}`).join('\n') : '- (todavía nada)'}`,
+    `# Lo que sabes de ${c.nombrePersona}\nÚsalo con naturalidad, sin recitarlo. Si algo parece cambiado, pregúntalo con tacto. Lo marcado (privado) quedó entre ustedes: no lo menciones como algo que otros saben.\n${c.hechos.length ? c.hechos.map((x) => `- ${x.contenido}${x.privado ? ' (privado)' : ''}`).join('\n') : '- (todavía nada)'}`,
+    c.porConfirmar.length
+      ? `# Datos por confirmar\nLos anotaste en conversaciones anteriores y pueden estar mal. Si calza, retoma UNO de forma natural ("¿su nieta era la que vive en Temuco, cierto?"). Si lo confirma usa memoria_confirmar; si lo corrige, memoria_corregir.\n${c.porConfirmar.slice(0, 10).map((x) => `- [${x.id}] ${x.contenido}`).join('\n')}`
+      : '',
+    c.episodios.length
+      ? `# Conversaciones recientes\n${c.episodios.map((x) => `- ${formatoFecha(x.fecha)}: ${x.resumen}${x.temasPendientes.length ? ` Pendiente: ${x.temasPendientes.join('; ')}.` : ''}`).join('\n')}`
+      : '',
+    `# Su memoria es suya\nSi pregunta qué recuerdas, usa memoria_que_recuerdo. Si pide corregir, olvidar o dejar algo como privado, hazlo con las herramientas de memoria (antes de olvidar, confirma qué quiere que olvides).`,
     seccionEstado(c) ? `# Estado de esta conversación\n${seccionEstado(c)}` : '',
   ]
     .filter(Boolean)
@@ -110,4 +120,8 @@ export function construirInstrucciones(c: ContextoInstrucciones): string {
 
 export function correccionParaRegenerar(indicaciones: string): string {
   return `\n\n# Corrección requerida\n${indicaciones}`;
+}
+
+function formatoFecha(d: Date): string {
+  return new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', weekday: 'long', day: 'numeric', month: 'long' }).format(d);
 }

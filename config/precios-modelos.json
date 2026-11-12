@@ -1,0 +1,7 @@
+{
+  "descripcion": "Precios en USD por millón de tokens, por 'proveedor/modelo'. Completar con la lista de precios vigente del contrato con cada proveedor y registrar la fecha de verificación. Un modelo sin precio aparece en el reporte con sus tokens y costo null.",
+  "verificadoEn": null,
+  "precios": {
+    "gemini/EJEMPLO-modelo": { "entradaUsdPorMillon": 0, "salidaUsdPorMillon": 0 }
+  }
+}

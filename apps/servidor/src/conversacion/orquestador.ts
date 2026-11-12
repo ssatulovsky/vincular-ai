@@ -54,6 +54,7 @@ interface EstadoTurno {
   sesionId: string;
   personaId: string;
   turnoPersonaId: string;
+  dispositivoId: string | null;
   texto: string;
   ctx: ContextoPersona;
   plan: PlanTerapeutico | null;
@@ -111,6 +112,7 @@ export class Orquestador {
       sesionId,
       personaId,
       turnoPersonaId,
+      dispositivoId: sesion.dispositivoId,
       texto,
       ctx,
       plan,
@@ -166,7 +168,7 @@ export class Orquestador {
 
     await this.registrarRiesgo(e, nivel, categorias, reglas.hallazgos.map((h) => h.reglaId), clasif, entroEnEmergencia, reglas.nivel);
     await bd.query(
-      `UPDATE sesion_conversacion SET nivel_maximo = greatest(nivel_maximo, $2), modo_emergencia = $3, categorias_emergencia = $4 WHERE id = $1`,
+      `UPDATE sesion_conversacion SET nivel_maximo = greatest(nivel_maximo, $2), modo_emergencia = $3, categorias_emergencia = $4, ultimo_turno_en = now() WHERE id = $1`,
       [sesionId, nivel, modoEmergencia, categoriasEmergencia],
     );
     const turnoId = await insertarTurno(bd, cifrador, sesionId, personaId, 'agente', respuesta.texto, respuesta.origen);
@@ -194,8 +196,10 @@ export class Orquestador {
       perfil: e.ctx.perfil,
       nombrePersona: e.ctx.nombre,
       plan: e.plan,
-      preferencias: e.ctx.hechos.filter((h) => h.capa === 'preferencias').map((h) => h.contenido),
-      hechos: e.ctx.hechos.filter((h) => h.capa !== 'preferencias').map((h) => h.contenido),
+      preferencias: e.ctx.hechos.filter((h) => h.capa === 'preferencias' && h.estado === 'confirmado').map((h) => h.contenido),
+      hechos: e.ctx.hechos.filter((h) => h.capa !== 'preferencias' && h.estado === 'confirmado').map((h) => ({ contenido: h.contenido, privado: h.privado })),
+      porConfirmar: e.ctx.hechos.filter((h) => h.estado === 'por_confirmar').map((h) => ({ id: h.id, contenido: h.contenido })),
+      episodios: e.ctx.episodios,
       nivelRiesgo: nivelEfectivo,
       categoriasRiesgo: categoriasEfectivas,
       modoEmergencia,
@@ -244,7 +248,10 @@ export class Orquestador {
     const ambitoHerramientas = {
       bd: this.d.bd,
       cifrador: this.d.cifrador,
+      modelos: this.d.modelos,
       personaId: e.personaId,
+      sesionId: e.sesionId,
+      dispositivoId: e.dispositivoId,
       turnoPersonaId: e.turnoPersonaId,
       alReportarRiesgo: (nivel: NivelRiesgo, motivo: string) => {
         if (!e.reporteAgente || nivel > e.reporteAgente.nivel) e.reporteAgente = { nivel, motivo };

@@ -20,7 +20,10 @@ export type Accion =
   | 'alertas.acusar'
   | 'transcripcion.leer'
   | 'resumen_bienestar.leer'
-  | 'conversacion.usar';
+  | 'conversacion.usar'
+  | 'memoria.propia'
+  | 'memoria.ver'
+  | 'costos.ver';
 
 /** Hechos sobre la relación entre el actor y la persona, resueltos desde la base. */
 export interface Contexto {
@@ -43,7 +46,8 @@ const CLINICOS: readonly RolPersonal[] = ['supervisor_clinico', 'enfermera_enlac
  */
 export function decidirPermiso(actor: Actor, accion: Accion, personaId: string | null, ctx: Contexto): boolean {
   if (actor.tipo === 'dispositivo') {
-    return accion === 'conversacion.usar' && personaId === actor.personaId;
+    // La tablet es la persona: conversa, ve, corrige, exporta y borra su memoria, y diseña su compañero.
+    return personaId === actor.personaId && (accion === 'conversacion.usar' || accion === 'memoria.propia' || accion === 'perfil_companero.editar');
   }
 
   if (actor.tipo === 'familiar') {
@@ -56,6 +60,7 @@ export function decidirPermiso(actor: Actor, accion: Accion, personaId: string |
   const rol = actor.rol;
   switch (accion) {
     case 'cuenta.crear':
+    case 'costos.ver':
     case 'persona.crear':
     case 'dispositivo.crear':
     case 'asignacion.gestionar':
@@ -64,6 +69,7 @@ export function decidirPermiso(actor: Actor, accion: Accion, personaId: string |
       return rol === 'admin_plataforma' || (CLINICOS.includes(rol) && ctx.asignado);
     case 'persona.ver_ficha':
     case 'plan.leer':
+    case 'memoria.ver':
       return CLINICOS.includes(rol) && ctx.asignado;
     case 'plan.editar':
     case 'transcripcion.leer':
@@ -74,6 +80,7 @@ export function decidirPermiso(actor: Actor, accion: Accion, personaId: string |
       return rol === 'guardia' || (CLINICOS.includes(rol) && ctx.asignado);
     case 'resumen_bienestar.leer':
     case 'conversacion.usar':
+    case 'memoria.propia':
       return false;
   }
 }
