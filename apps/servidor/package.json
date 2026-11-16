@@ -9,6 +9,7 @@
     "start": "tsx src/index.ts",
     "db:migrar": "tsx src/db/migrar.ts",
     "cli:crear-cuenta": "tsx src/cli/crearCuenta.ts",
+    "cli:alta-prueba": "tsx src/cli/altaPrueba.ts",
     "riesgo:evaluar": "tsx src/cli/evaluarRiesgo.ts",
     "ia:modelos": "tsx src/cli/listarModelos.ts",
     "memoria:procesar": "tsx src/cli/procesarMemoria.ts",
