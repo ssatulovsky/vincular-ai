@@ -27,6 +27,10 @@ docs/decisiones/              Registro de decisiones
 
 ## Puesta en marcha
 
+**En un VPS Ubuntu:** ver [`docs/vps.md`](docs/vps.md) (instalador de un comando, HTTPS y servicio systemd).
+
+**En un equipo de desarrollo:**
+
 Requisitos: Node.js 22 y PostgreSQL 16 con pgvector (o Docker).
 
 ```bash
