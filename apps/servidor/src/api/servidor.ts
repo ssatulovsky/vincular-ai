@@ -19,6 +19,11 @@ import { cargarPrecios, type TablaPrecios } from '../costos/costos.ts';
 import { rutasVoz } from './rutas/voz.ts';
 import { rutasMedicacion } from './rutas/medicacion.ts';
 import { TabletsConectadas } from '../tablets.ts';
+import type { DependenciasEscalamiento } from '../escalamiento/motor.ts';
+import { HashTelefonos } from '../escalamiento/telefonos.ts';
+import { CanalTwilio } from '../escalamiento/twilio.ts';
+import { rutasEscalamiento } from './rutas/escalamiento.ts';
+import { rutasTwilio } from './rutas/twilio.ts';
 import { rutasTablet } from './rutas/tablet.ts';
 import { readFileSync } from 'node:fs';
 import { ServiciosVoz, validarCatalogo, type CatalogoVoces } from '@vincular/voz';
@@ -33,6 +38,9 @@ export interface Aplicacion {
   voz: ServiciosVoz;
   catalogoVoces: CatalogoVoces;
   tablets: TabletsConectadas;
+  escalamiento: DependenciasEscalamiento;
+  /** El planificador lo reemplaza para ejecutar de inmediato una cadena recién iniciada. */
+  despertarEscalamiento: () => void;
   /** Extracciones de memoria en curso (para esperar al cerrar y en pruebas). */
   tareasPendientes: Set<Promise<unknown>>;
 }
@@ -65,10 +73,12 @@ export function tokenDe(req: FastifyRequest): string | null {
 export function crearAplicacion(config: Config, bd: Bd = crearPool(config.databaseUrl)): Aplicacion {
   const cifrador = new Cifrador(config.claveCifrado);
   const modelos = new ModelosPorTarea(config.ia);
-  const orquestador = new Orquestador({ bd, cifrador, modelos, emergencia: config.emergencia, esperaClasificadorMs: config.esperaClasificadorMs });
+  // El orquestador avisa al planificador a través de la aplicación (se conecta más abajo).
+  const ref: { app?: Aplicacion } = {};
+  const orquestador = new Orquestador({ bd, cifrador, modelos, emergencia: config.emergencia, esperaClasificadorMs: config.esperaClasificadorMs, alEscalar: () => ref.app?.despertarEscalamiento() });
   const voz = new ServiciosVoz(config.voz.servicios);
   const catalogoVoces = validarCatalogo(JSON.parse(readFileSync(config.voz.catalogo, 'utf8')));
-  return {
+  const app: Aplicacion = {
     config,
     bd,
     cifrador,
@@ -78,8 +88,21 @@ export function crearAplicacion(config: Config, bd: Bd = crearPool(config.databa
     voz,
     catalogoVoces,
     tablets: new TabletsConectadas({ bd, voz, catalogo: catalogoVoces, emergencia: config.emergencia }),
+    escalamiento: {
+      bd,
+      cifrador,
+      hashes: new HashTelefonos(config.claveCifrado),
+      canal: config.escalamiento.twilio ? new CanalTwilio(config.escalamiento.twilio) : null,
+      emergencia: config.emergencia,
+      urlPublica: config.escalamiento.urlPublica,
+      voz: config.escalamiento.voz,
+      emergenciaSinRespuestaMin: config.escalamiento.emergenciaSinRespuestaMin,
+    },
+    despertarEscalamiento: () => undefined,
     tareasPendientes: new Set(),
   };
+  ref.app = app;
+  return app;
 }
 
 export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
@@ -123,6 +146,8 @@ export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
   await f.register(rutasCostos(app));
   await f.register(rutasVoz(app));
   await f.register(rutasMedicacion(app));
+  await f.register(rutasEscalamiento(app));
+  await f.register(rutasTwilio(app));
   await f.register(rutasTablet(app));
   return f;
 }

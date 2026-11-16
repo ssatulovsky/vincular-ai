@@ -35,6 +35,13 @@ export function configDePrueba(extra: Partial<Config> = {}): Config {
     memoriaMinutosInactividad: 30,
     medicacion: { segundoAvisoMin: 30, sinRespuestaMin: 30, vencimientoMin: 60 },
     planificador: false,
+    // Twilio apunta a un puerto cerrado: los envíos fallan de verdad y la cadena avanza.
+    escalamiento: {
+      twilio: { accountSid: 'AC-prueba', authToken: 'token-de-prueba', origen: '+15005550006', url: 'http://127.0.0.1:9', timeoutMs: 1500 },
+      urlPublica: 'https://vincular.ejemplo.cl',
+      voz: { idioma: 'es-MX' },
+      emergenciaSinRespuestaMin: 10,
+    },
     // Proveedores de voz inalcanzables (puerto cerrado): se prueban los caminos sin voz.
     voz: {
       catalogo: new URL('../../../config/voz/voces.json', import.meta.url).pathname,

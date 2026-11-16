@@ -4,6 +4,7 @@ import type { Cifrador } from '../seguridad/cifrado.ts';
 import { auditar } from '../seguridad/auditoria.ts';
 import { listarMedicamentos, type Medicamento } from './medicamentos.ts';
 import { textoRecordatorio } from './textos.ts';
+import { iniciarEscalamiento } from '../escalamiento/motor.ts';
 
 /**
  * Agenda de dosis y ciclo del recordatorio (especificación, Enfermero digital):
@@ -176,7 +177,7 @@ export async function cicloMedicacion(d: { bd: Bd; cifrador: Cifrador; entrega: 
       const k = `${f.persona_id}|${f.programada_en.toISOString()}`;
       (porGrupo.get(k) ?? porGrupo.set(k, []).get(k)!).push(f);
     }
-    for (const g of porGrupo.values()) res.notificaciones += await avisarSinRespuesta(c, g[0]!.persona_id, g[0]!.programada_en, g.map((x) => x.id), g.some((x) => x.entregado_en_linea === false));
+    for (const g of porGrupo.values()) res.notificaciones += await avisarSinRespuesta(c, g[0]!.persona_id, g[0]!.programada_en, g.map((x) => x.id), g.some((x) => x.entregado_en_linea === false), ahora);
   });
   return res;
 }
@@ -193,31 +194,20 @@ async function entregarYMarcar(d: { bd: Bd; entrega: EntregaTablet }, r: Recorda
 }
 
 /**
- * Aviso por una dosis sin respuesta. Va a los cuidadores que la persona autorizó para recibir
- * avisos de medicación; si no autorizó a nadie, va a su equipo clínico asignado.
+ * Aviso por una dosis sin respuesta: inicia la cadena de escalamiento del protocolo
+ * "dosis_sin_respuesta" (por defecto, cuidadores autorizados y luego el equipo asignado).
  * El detalle no lleva nombres de medicamentos ni texto clínico.
  */
-async function avisarSinRespuesta(c: Consultable, personaId: string, programadaEn: Date, eventoIds: string[], tabletSinConexion: boolean): Promise<number> {
-  const detalle = { programadaEn: programadaEn.toISOString(), dosis: eventoIds.length, tabletSinConexion };
-  const cuidadores = await c.query<{ id: string }>(
-    `SELECT id FROM contacto WHERE persona_id = $1 AND es_cuidador AND (permisos->>'avisos_medicacion')::boolean IS TRUE ORDER BY prioridad_emergencia NULLS LAST`,
-    [personaId],
-  );
-  if (cuidadores.rows.length) {
-    for (const k of cuidadores.rows) {
-      await c.query(`INSERT INTO notificacion (persona_id, tipo, destinatario_contacto_id, prioridad, detalle) VALUES ($1, 'dosis_sin_respuesta', $2, 1, $3)`, [personaId, k.id, detalle]);
-    }
-    return cuidadores.rows.length;
-  }
-  const equipo = await c.query<{ cuenta_id: string }>(
-    `SELECT a.cuenta_id FROM asignacion_personal a JOIN cuenta cu ON cu.id = a.cuenta_id WHERE a.persona_id = $1 AND cu.activa AND cu.rol IN ('enfermera_enlace', 'gerontologo', 'supervisor_clinico')
-      ORDER BY CASE cu.rol WHEN 'enfermera_enlace' THEN 0 WHEN 'gerontologo' THEN 1 ELSE 2 END LIMIT 1`,
-    [personaId],
-  );
-  for (const k of equipo.rows) {
-    await c.query(`INSERT INTO notificacion (persona_id, tipo, destinatario_cuenta_id, prioridad, detalle) VALUES ($1, 'dosis_sin_respuesta', $2, 1, $3)`, [personaId, k.cuenta_id, { ...detalle, sinCuidadorAutorizado: true }]);
-  }
-  return equipo.rows.length;
+async function avisarSinRespuesta(c: Consultable, personaId: string, programadaEn: Date, eventoIds: string[], tabletSinConexion: boolean, ahora: Date): Promise<number> {
+  const id = await iniciarEscalamiento(c, {
+    personaId,
+    tipoEvento: 'dosis_sin_respuesta',
+    nivel: 1,
+    categorias: ['dosis_sin_respuesta'],
+    detalle: { programadaEn: programadaEn.toISOString(), dosis: eventoIds.length, tabletSinConexion },
+    ahora,
+  });
+  return id ? 1 : 0;
 }
 
 export type OrigenConfirmacion = 'voz' | 'pantalla' | 'sin_conexion' | 'equipo';

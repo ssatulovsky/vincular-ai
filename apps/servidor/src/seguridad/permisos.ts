@@ -26,7 +26,8 @@ export type Accion =
   | 'costos.ver'
   | 'medicacion.gestionar'
   | 'salud.propia'
-  | 'hoja_control.ver';
+  | 'hoja_control.ver'
+  | 'protocolo.gestionar';
 
 /** Hechos sobre la relación entre el actor y la persona, resueltos desde la base. */
 export interface Contexto {
@@ -67,6 +68,9 @@ export function decidirPermiso(actor: Actor, accion: Accion, personaId: string |
 
   const rol = actor.rol;
   switch (accion) {
+    case 'protocolo.gestionar':
+      // Protocolos de escalamiento y turnos de guardia: decisión clínica y operativa.
+      return rol === 'admin_plataforma' || rol === 'supervisor_clinico';
     case 'cuenta.crear':
     case 'costos.ver':
     case 'persona.crear':

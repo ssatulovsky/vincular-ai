@@ -102,11 +102,11 @@ describe('agenda y ciclo del recordatorio', () => {
     const r3 = await cicloMedicacion(d, T('2030-03-10T12:02:00Z'));
     expect(r3).toMatchObject({ sinRespuesta: 1, notificaciones: 1 });
     expect(await estado(medId, '2030-03-10T11:00:00Z')).toMatchObject({ estado: 'sin_respuesta' });
-    // Sin cuidador autorizado para avisos de medicación, el aviso va al equipo asignado.
-    const n = await e.owner.query('SELECT tipo, destinatario_contacto_id, destinatario_cuenta_id, detalle FROM notificacion WHERE persona_id = $1', [e.ids.personaAjena]);
-    expect(n.rows).toHaveLength(1);
-    expect(n.rows[0]).toMatchObject({ tipo: 'dosis_sin_respuesta', destinatario_contacto_id: null, detalle: { sinCuidadorAutorizado: true, dosis: 1, tabletSinConexion: false } });
-    expect(JSON.stringify(n.rows[0].detalle)).not.toContain('Losartán');
+    // Inicia la cadena del protocolo "dosis sin respuesta"; el detalle no lleva medicamentos.
+    const esc = await e.owner.query('SELECT tipo_evento, nivel, detalle FROM escalamiento WHERE persona_id = $1', [e.ids.personaAjena]);
+    expect(esc.rows).toHaveLength(1);
+    expect(esc.rows[0]).toMatchObject({ tipo_evento: 'dosis_sin_respuesta', nivel: 1, detalle: { dosis: 1, tabletSinConexion: false, protocolo: 'Dosis sin respuesta' } });
+    expect(JSON.stringify(esc.rows[0].detalle)).not.toContain('Losartán');
     const s = await e.owner.query(`SELECT count(*)::int AS n FROM senal WHERE persona_id = $1 AND tipo = 'adherencia.dosis_sin_respuesta'`, [e.ids.personaAjena]);
     expect(s.rows[0].n).toBe(1);
     tablet.cerrar();
@@ -125,11 +125,11 @@ describe('agenda y ciclo del recordatorio', () => {
   });
 
   it('una dosis que nadie recordó a tiempo (servidor caído) queda sin registro y no se escala', async () => {
-    const antes = await e.owner.query('SELECT count(*)::int AS n FROM notificacion WHERE persona_id = $1', [e.ids.personaAjena]);
+    const antes = await e.owner.query('SELECT count(*)::int AS n FROM escalamiento WHERE persona_id = $1', [e.ids.personaAjena]);
     const r = await cicloMedicacion({ bd: e.app.bd, cifrador: e.app.cifrador, entrega: e.app.tablets }, T('2030-03-11T14:00:00Z'));
     expect(r.sinRegistro).toBeGreaterThanOrEqual(1);
     expect(await estado(medId, '2030-03-11T11:00:00Z')).toMatchObject({ estado: 'sin_registro' });
-    const despues = await e.owner.query('SELECT count(*)::int AS n FROM notificacion WHERE persona_id = $1', [e.ids.personaAjena]);
+    const despues = await e.owner.query('SELECT count(*)::int AS n FROM escalamiento WHERE persona_id = $1', [e.ids.personaAjena]);
     expect(despues.rows[0].n).toBe(antes.rows[0].n);
   });
 

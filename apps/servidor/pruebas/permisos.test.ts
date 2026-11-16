@@ -13,7 +13,7 @@ const tablet: Actor = { tipo: 'dispositivo', id: 'd', personaId: P };
 const TODAS: Accion[] = [
   'cuenta.crear', 'persona.crear', 'persona.ver_ficha', 'dispositivo.crear', 'asignacion.gestionar', 'perfil_companero.editar',
   'plan.leer', 'plan.editar', 'alertas.leer', 'alertas.acusar', 'transcripcion.leer', 'resumen_bienestar.leer', 'conversacion.usar',
-  'memoria.propia', 'memoria.ver', 'costos.ver', 'medicacion.gestionar', 'salud.propia', 'hoja_control.ver',
+  'memoria.propia', 'memoria.ver', 'costos.ver', 'medicacion.gestionar', 'salud.propia', 'hoja_control.ver', 'protocolo.gestionar',
 ];
 
 describe('permisos', () => {
@@ -59,6 +59,13 @@ describe('permisos', () => {
   it('el familiar ve la hoja del control solo si la persona lo autorizó', () => {
     expect(decidirPermiso(familiar, 'hoja_control.ver', P, { asignado: false, esSuContacto: true, permisosContacto: { hoja_control: true } })).toBe(true);
     expect(decidirPermiso(familiar, 'hoja_control.ver', P, { asignado: false, esSuContacto: true, permisosContacto: { resumen_bienestar: true } })).toBe(false);
+  });
+
+  it('los protocolos de escalamiento y la guardia los gestionan el administrador y el supervisor', () => {
+    expect(decidirPermiso(personal('admin_plataforma'), 'protocolo.gestionar', null, noAsignado)).toBe(true);
+    expect(decidirPermiso(personal('supervisor_clinico'), 'protocolo.gestionar', null, noAsignado)).toBe(true);
+    for (const rol of ['enfermera_enlace', 'gerontologo', 'guardia'] as const) expect(decidirPermiso(personal(rol), 'protocolo.gestionar', null, asignado)).toBe(false);
+    expect(decidirPermiso(tablet, 'protocolo.gestionar', P, asignado)).toBe(false);
   });
 
   it('solo el administrador ve los costos', () => {

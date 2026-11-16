@@ -6,6 +6,7 @@ import type { ConfigIA, Tarea } from '@vincular/ia';
 import type { ContactosEmergencia } from '@vincular/seguridad-clinica';
 import type { ConfigVoz } from '@vincular/voz';
 import type { PlazosMedicacion } from '../medicacion/agenda.ts';
+import type { ConfigTwilio } from '../escalamiento/twilio.ts';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -53,6 +54,16 @@ const esquemaEntorno = esquemaEntornoVoz.extend({
   MEDICACION_SIN_RESPUESTA_MIN: z.coerce.number().int().positive().default(30),
   // Iniciar el planificador (recordatorios, memoria) dentro del servidor.
   PLANIFICADOR: z.enum(['si', 'no']).default('si'),
+  // ── Escalamiento (Sprint 5) ──
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  // Número de origen en E.164 (necesario para llamadas) o MessagingServiceSid (MG…) solo para SMS.
+  TWILIO_ORIGEN: z.string().optional(),
+  TWILIO_IDIOMA: z.string().default('es-MX'),
+  TWILIO_VOZ: z.string().optional(),
+  // URL pública del servidor (https://…), para los webhooks de Twilio: acuse con "1" y estados.
+  BASE_URL_PUBLICA: z.string().url().optional(),
+  ESCALAMIENTO_EMERGENCIA_SIN_RESPUESTA_MIN: z.coerce.number().int().positive().default(10),
 });
 
 const esquemaTarea = z.object({
@@ -88,6 +99,12 @@ export interface Config {
   voz: { catalogo: string; umbralConfianza: number; servicios: ConfigVoz };
   medicacion: PlazosMedicacion;
   planificador: boolean;
+  escalamiento: {
+    twilio: ConfigTwilio | null;
+    urlPublica: string | null;
+    voz: { idioma: string; voz?: string | undefined };
+    emergenciaSinRespuestaMin: number;
+  };
 }
 
 export function cargarConfig(entorno: NodeJS.ProcessEnv = process.env): Config {
@@ -140,6 +157,12 @@ export function cargarConfig(entorno: NodeJS.ProcessEnv = process.env): Config {
     voz: configVozDe(e),
     medicacion: { segundoAvisoMin: e.MEDICACION_SEGUNDO_AVISO_MIN, sinRespuestaMin: e.MEDICACION_SIN_RESPUESTA_MIN, vencimientoMin: 60 },
     planificador: e.PLANIFICADOR === 'si',
+    escalamiento: {
+      twilio: e.TWILIO_ACCOUNT_SID && e.TWILIO_AUTH_TOKEN && e.TWILIO_ORIGEN ? { accountSid: e.TWILIO_ACCOUNT_SID, authToken: e.TWILIO_AUTH_TOKEN, origen: e.TWILIO_ORIGEN } : null,
+      urlPublica: e.BASE_URL_PUBLICA?.replace(/\/+$/, '') ?? null,
+      voz: { idioma: e.TWILIO_IDIOMA, ...(e.TWILIO_VOZ ? { voz: e.TWILIO_VOZ } : {}) },
+      emergenciaSinRespuestaMin: e.ESCALAMIENTO_EMERGENCIA_SIN_RESPUESTA_MIN,
+    },
     emergencia: { samu: protocolo.numeros.samu.numero, prevencionSuicidio: protocolo.numeros.prevencionSuicidio.numero, verificados },
   };
 }

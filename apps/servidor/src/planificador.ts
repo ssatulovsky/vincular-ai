@@ -1,6 +1,7 @@
 import type { Aplicacion } from './api/servidor.ts';
 import { cicloMedicacion } from './medicacion/agenda.ts';
 import { procesarPendientes } from './memoria/extraccion.ts';
+import { cicloEscalamiento } from './escalamiento/motor.ts';
 
 /**
  * Planificador en el proceso del servidor. Corre tareas idempotentes cuyo estado vive en la
@@ -10,6 +11,7 @@ import { procesarPendientes } from './memoria/extraccion.ts';
 export class Planificador {
   private temporizadores: NodeJS.Timeout[] = [];
   private enCurso = new Set<string>();
+  private pendiente = new Set<string>();
 
   constructor(
     private readonly app: Aplicacion,
@@ -17,6 +19,9 @@ export class Planificador {
   ) {}
 
   iniciar(): void {
+    this.cada('escalamiento', 15_000, () => this.escalar());
+    // Una cadena recién iniciada (p. ej. una emergencia) se ejecuta sin esperar el ciclo.
+    this.app.despertarEscalamiento = () => this.ahora('escalamiento', () => this.escalar());
     this.cada('medicacion', 20_000, async () => {
       await cicloMedicacion({ bd: this.app.bd, cifrador: this.app.cifrador, entrega: this.app.tablets, plazos: this.app.config.medicacion }, new Date());
     });
@@ -25,19 +30,35 @@ export class Planificador {
     });
   }
 
+  private async escalar(): Promise<void> {
+    await cicloEscalamiento(this.app.escalamiento, new Date());
+  }
+
   detener(): void {
+    this.app.despertarEscalamiento = () => undefined;
     for (const t of this.temporizadores) clearInterval(t);
     this.temporizadores = [];
   }
 
+  private ahora(nombre: string, fn: () => Promise<void>): void {
+    if (this.enCurso.has(nombre)) {
+      // Ya hay una ejecución: se repite al terminar para tomar lo recién llegado.
+      this.pendiente.add(nombre);
+      return;
+    }
+    this.enCurso.add(nombre);
+    fn()
+      .catch((e: Error) => this.registrar(`[planificador:${nombre}] ${e.message}`))
+      .finally(() => {
+        this.enCurso.delete(nombre);
+        if (this.pendiente.delete(nombre)) this.ahora(nombre, fn);
+      });
+  }
+
   private cada(nombre: string, ms: number, fn: () => Promise<void>): void {
     const correr = () => {
-      // Una ejecución a la vez por tarea.
-      if (this.enCurso.has(nombre)) return;
-      this.enCurso.add(nombre);
-      fn()
-        .catch((e: Error) => this.registrar(`[planificador:${nombre}] ${e.message}`))
-        .finally(() => this.enCurso.delete(nombre));
+      // Una ejecución a la vez por tarea; si ya corre, no se acumulan ciclos.
+      if (!this.enCurso.has(nombre)) this.ahora(nombre, fn);
     };
     this.temporizadores.push(setInterval(correr, ms));
     correr();
