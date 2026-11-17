@@ -55,7 +55,9 @@ export const rutasVoz =
       if (actor.tipo !== 'dispositivo') throw new ErrorHttp(403, 'Solo desde la tablet de la persona');
       await exigirPermiso(app.bd, actor, 'perfil_companero.editar', actor.personaId);
       const { id } = z.object({ id: z.string() }).parse(req.params);
-      return reply.type('audio/mpeg').header('cache-control', 'private, max-age=3600').send(await muestra(actor.personaId, id));
+      // Primero el audio y después las cabeceras: si la muestra falla, el 503 no debe quedar en la caché del navegador.
+      const audio = await muestra(actor.personaId, id);
+      return reply.type('audio/mpeg').header('cache-control', 'private, max-age=3600').send(audio);
     });
 
     /** La misma muestra para el profesional que diseña el compañero desde el panel. */
@@ -64,6 +66,7 @@ export const rutasVoz =
       const { persona, id } = z.object({ persona: z.string().uuid(), id: z.string() }).parse(req.params);
       if (actor.tipo !== 'personal') throw new ErrorHttp(403, 'Solo para el equipo');
       await exigirPermiso(app.bd, actor, 'perfil_companero.editar', persona);
-      return reply.type('audio/mpeg').header('cache-control', 'private, max-age=3600').send(await muestra(persona, id));
+      const audio = await muestra(persona, id);
+      return reply.type('audio/mpeg').header('cache-control', 'private, max-age=3600').send(audio);
     });
   };
