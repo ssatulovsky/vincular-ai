@@ -6,7 +6,8 @@
     "el-paulina",
     "el-carlos",
     "el-martin",
-    "el-ivan"
+    "el-ivan",
+    "el-esteban"
   ],
   "porDefecto": "el-silvana",
   "voces": [
@@ -130,6 +131,18 @@
       "descripcion": "Chileno, voz de persona mayor; cálida y reflexiva",
       "genero": "masculina",
       "edad": "mayor",
+      "grave": true
+    },
+    {
+      "id": "el-esteban",
+      "proveedor": "elevenlabs",
+      "motor": "eleven_v4_turbo",
+      "voz": "fawH90GsqqfRlrMoVpk5",
+      "idioma": "es",
+      "nombre": "Esteban",
+      "descripcion": "Chileno, joven; grave, confiable y elegante",
+      "genero": "masculina",
+      "edad": "joven",
       "grave": true
     }
   ]
