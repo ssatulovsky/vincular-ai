@@ -30,7 +30,6 @@
     "@fastify/websocket": "^11.3.7",
     "@livekit/agents": "^1.10.0",
     "@livekit/agents-plugin-elevenlabs": "^1.10.0",
-    "@livekit/agents-plugin-silero": "^1.10.0",
     "@node-rs/argon2": "^2.2.2",
     "fastify": "^5.12.8",
     "livekit-client": "^2.24.1",

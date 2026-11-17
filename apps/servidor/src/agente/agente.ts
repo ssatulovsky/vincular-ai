@@ -2,7 +2,7 @@
  * Agente de conversación en tiempo real (LiveKit Agents). Corre como un proceso aparte del
  * servidor web (`npm run agente`) y entra a la sala que el servidor creó para la tablet.
  *
- *   voz de la persona ──► detector de voz (Silero) + voz a texto en tiempo real (ElevenLabs)
+ *   voz de la persona ──► voz a texto en tiempo real (ElevenLabs, que también detecta el fin del turno)
  *        ──► el MISMO orquestador de Vincular (detector de riesgo, guardián, memoria, plan)
  *        ──► texto a voz en streaming (ElevenLabs, la voz que eligió la persona) ──► tablet
  *
@@ -13,14 +13,13 @@
 import type { ReadableStream } from 'node:stream/web';
 import { AutoSubscribe, defineAgent, llm, voice, type JobContext, type JobProcess } from '@livekit/agents';
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs';
-import * as silero from '@livekit/agents-plugin-silero';
 import { RoomEvent, type RemoteParticipant } from '@livekit/rtc-node';
 import { crearAplicacion, type Aplicacion } from '../api/servidor.ts';
 import { cargarConfig } from '../config/config.ts';
 import { abrirSesionConEmergencia, leerSesion } from '../conversacion/repositorio.ts';
 import { leerPerfil, PERFIL_POR_DEFECTO } from '../conversacion/perfil.ts';
 import { procesarSesion } from '../memoria/extraccion.ts';
-import { flujoDeTexto, personaDelParticipante, ultimoMensajeDeLaPersona, vozParaTiempoReal } from './utilidades.ts';
+import { flujoDeTexto, personaDelParticipante, silencioFinDeTurno, ultimoMensajeDeLaPersona, vozParaTiempoReal } from './utilidades.ts';
 
 const TEMA = 'vincular';
 
@@ -51,10 +50,10 @@ function registro(msg: string, extra: Record<string, unknown> = {}): void {
 
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
-    // Una aplicación (base, modelos, orquestador) y el detector de voz por proceso, antes del primer llamado.
+    // Una aplicación (base, modelos, orquestador) por proceso, antes del primer llamado. Sin detector
+    // de voz local: en un VPS compartido se atrasaba y el fin del turno llegaba segundos tarde.
     const config = cargarConfig({ ...process.env, PLANIFICADOR: 'no' });
     proc.userData.app = crearAplicacion(config);
-    proc.userData.vad = await silero.VAD.load({ minSilenceDuration: 0.6 });
   },
 
   entry: async (ctx: JobContext) => {
@@ -99,16 +98,23 @@ export default defineAgent({
     }
 
     const sesion = new voice.AgentSession({
-      vad: ctx.proc.userData.vad as silero.VAD,
       llm: new MarcadorOrquestador(),
-      stt: new elevenlabs.STT({ apiKey: claveEleven, model: tr.modeloStt, languageCode: app.config.voz.servicios.reconocimiento.proveedor === 'elevenlabs' ? app.config.voz.servicios.reconocimiento.idioma : 'es' }),
+      stt: new elevenlabs.STT({
+        apiKey: claveEleven,
+        model: tr.modeloStt,
+        languageCode: app.config.voz.servicios.reconocimiento.proveedor === 'elevenlabs' ? app.config.voz.servicios.reconocimiento.idioma : 'es',
+        // ElevenLabs decide en su servidor que la persona terminó de hablar tras este silencio.
+        serverVad: { vadSilenceThresholdSecs: silencioFinDeTurno(tr.finTurno.minS) },
+      }),
       // Con eleven_v4_* el plugin usa la API de diálogo, que ignora la velocidad: queda la natural de la voz.
       tts: new elevenlabs.TTS({ apiKey: claveEleven, voiceId: voz.voz, model: voz.motor, language: 'es', voiceSettings: { stability: 0.5, similarity_boost: 0.75, speed: perfil.velocidad_voz } }),
       turnHandling: {
-        turnDetection: 'vad',
-        // Personas mayores: pausas largas sin que el turno se corte.
-        endpointing: { minDelay: tr.finTurno.minS, maxDelay: tr.finTurno.maxS },
-        interruption: { enabled: true, minDuration: 0.6 },
+        turnDetection: 'stt',
+        // Personas mayores: pausas largas sin que el turno se corte. LiveKit usa milisegundos; el
+        // silencio principal ya lo esperó ElevenLabs, aquí solo un margen corto y un tope.
+        endpointing: { minDelay: 300, maxDelay: Math.round(tr.finTurno.maxS * 1000) },
+        // Sin detector local, la interrupción ocurre cuando ElevenLabs transcribe una palabra.
+        interruption: { enabled: true, minWords: 1 },
         preemptiveGeneration: { enabled: false },
       },
     });
