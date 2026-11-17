@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E7EEEA">
+<title>Diseñar mi compañero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /*
+   * Diseño del compañero: un paso por pantalla, botones grandes, nada que se deba adivinar.
+   * La usa la persona en su tablet (con alguien al lado si quiere) o el profesional desde el panel.
+   * Misma paleta y tipografía que la tablet (Atkinson Hyperlegible, para baja visión).
+   */
+  :root {
+    --fondo: #E7EEEA; --tinta: #12221B; --tinta-suave: #3B5148; --botella: #1E5A47;
+    --botella-claro: #CFE1D8; --mostaza: #E2A41F; --alerta: #A3121A; --blanco: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { background: var(--fondo); color: var(--tinta); font-family: "Atkinson Hyperlegible", Verdana, sans-serif; font-size: 26px; line-height: 1.4; -webkit-tap-highlight-color: transparent; }
+  .oculto { display: none !important; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 24px 140px; }
+  .barra { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  .barra a { color: var(--botella); font-weight: 700; font-size: 22px; }
+  .progreso { color: var(--tinta-suave); font-size: 22px; }
+  .pista { height: 10px; background: var(--botella-claro); border-radius: 6px; overflow: hidden; margin-bottom: 28px; }
+  .pista > div { height: 100%; background: var(--botella); width: 0; transition: width 200ms ease; }
+  h1 { font-size: 40px; line-height: 1.2; margin: 0 0 10px; }
+  .ayuda { color: var(--tinta-suave); margin: 0 0 26px; max-width: 40ch; }
+  .opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .opcion {
+    font: inherit; text-align: left; min-height: 96px; padding: 18px 22px; border-radius: 20px; cursor: pointer;
+    background: var(--blanco); color: var(--tinta); border: 4px solid var(--blanco);
+    display: grid; gap: 4px; align-content: center;
+  }
+  .opciones.dos { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+  .opcion strong { font-size: 30px; }
+  .opcion span { color: var(--tinta-suave); font-size: 22px; }
+  .opcion[aria-pressed="true"] { border-color: var(--botella); background: var(--botella-claro); }
+  .opcion[aria-pressed="true"] strong::after { content: " ✓"; color: var(--botella); }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline: 5px solid var(--mostaza); outline-offset: 3px; }
+  input[type="text"], input[type="email"], input[type="password"] { width: 100%; font: inherit; font-size: 30px; padding: 16px 20px; border-radius: 16px; border: 3px solid var(--tinta-suave); background: var(--blanco); color: var(--tinta); }
+  .sugerencias { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+  .chip { font: inherit; font-size: 24px; min-height: 64px; padding: 0 24px; border-radius: 32px; border: 3px solid var(--botella); background: var(--blanco); color: var(--botella); cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--botella); color: var(--blanco); }
+  .subtitulo { font-size: 28px; font-weight: 700; margin: 30px 0 14px; }
+
+  .voces { display: grid; gap: 14px; }
+  .voz { background: var(--blanco); border-radius: 20px; padding: 18px 22px; display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; border: 4px solid var(--blanco); }
+  .voz[data-elegida="true"] { border-color: var(--botella); background: var(--botella-claro); }
+  .voz strong { font-size: 30px; display: block; }
+  .voz span { color: var(--tinta-suave); font-size: 21px; }
+  .voz button { font: inherit; font-size: 24px; font-weight: 700; min-height: 68px; padding: 0 22px; border-radius: 16px; cursor: pointer; border: 3px solid var(--botella); background: var(--blanco); color: var(--botella); }
+  .voz button.elegir { background: var(--botella); color: var(--blanco); }
+
+  .retratos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .retrato { padding: 0; border: 6px solid var(--blanco); border-radius: 24px; overflow: hidden; background: var(--blanco); cursor: pointer; aspect-ratio: 1; }
+  .retrato img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .retrato[aria-pressed="true"] { border-color: var(--botella); box-shadow: 0 0 0 6px var(--botella-claro); }
+  .esperando { background: var(--blanco); border-radius: 20px; padding: 22px; margin-top: 18px; }
+  .principal { font: inherit; font-size: 28px; font-weight: 700; min-height: 80px; padding: 0 34px; border-radius: 20px; border: 0; background: var(--botella); color: var(--blanco); cursor: pointer; }
+  .principal:disabled { opacity: .5; cursor: default; }
+
+  .resumen { display: grid; grid-template-columns: minmax(200px, 300px) 1fr; gap: 26px; align-items: start; }
+  .resumen img { width: 100%; border-radius: 24px; display: block; }
+  .resumen .sin-retrato { aspect-ratio: 1; border-radius: 24px; background: var(--botella-claro); display: grid; place-items: center; font-size: 80px; color: var(--botella); }
+  .resumen dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; }
+  .resumen dt { color: var(--tinta-suave); }
+  .resumen dd { margin: 0; font-weight: 700; }
+  @media (max-width: 640px) { .resumen { grid-template-columns: 1fr; } .voz { grid-template-columns: 1fr; } }
+
+  .error { color: var(--alerta); font-weight: 700; margin-top: 16px; }
+  .ok { background: var(--blanco); border: 4px solid var(--botella); border-radius: 20px; padding: 22px; margin-top: 20px; }
+  nav.pie { position: fixed; left: 0; right: 0; bottom: 0; background: var(--fondo); border-top: 2px solid var(--botella-claro); padding: 16px 24px max(16px, env(safe-area-inset-bottom)); }
+  nav.pie > div { max-width: 980px; margin: 0 auto; display: flex; justify-content: space-between; gap: 16px; }
+  nav.pie button { font: inherit; font-size: 28px; font-weight: 700; min-height: 80px; padding: 0 34px; border-radius: 20px; cursor: pointer; }
+  #atras { background: var(--blanco); color: var(--botella); border: 3px solid var(--botella); }
+  #siguiente { background: var(--botella); color: var(--blanco); border: 0; margin-left: auto; }
+  #siguiente:disabled { opacity: .45; cursor: default; }
+  .personas { display: grid; gap: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <!-- Ingreso del equipo (solo si no hay código de tablet en este dispositivo) -->
+  <section id="ingreso" class="oculto" aria-labelledby="t-ingreso">
+    <h1 id="t-ingreso">Diseñar el compañero</h1>
+    <p class="ayuda">Ingrese con su cuenta del equipo. Si está en la tablet de la persona, abra esta página desde la tablet.</p>
+    <form id="form-ingreso" style="display:grid;gap:16px;max-width:560px">
+      <input type="email" id="email" autocomplete="username" placeholder="Correo" aria-label="Correo" required>
+      <input type="password" id="contrasena" autocomplete="current-password" placeholder="Contraseña" aria-label="Contraseña" required>
+      <button class="principal" type="submit">Ingresar</button>
+    </form>
+    <p class="error" id="error-ingreso" role="alert"></p>
+  </section>
+
+  <section id="elegir-persona" class="oculto" aria-labelledby="t-personas">
+    <h1 id="t-personas">¿Para quién es el compañero?</h1>
+    <p class="ayuda">Personas que usted atiende.</p>
+    <div class="personas" id="lista-personas"></div>
+    <p class="error" id="error-personas" role="alert"></p>
+  </section>
+
+  <!-- Asistente -->
+  <section id="asistente" class="oculto">
+    <div class="barra"><span class="progreso" id="progreso"></span><a id="volver" href="/tablet">Volver a conversar</a></div>
+    <div class="pista" aria-hidden="true"><div id="pista"></div></div>
+
+    <div class="paso" data-paso="genero">
+      <h1>¿Su compañero será mujer u hombre?</h1>
+      <p class="ayuda">Así sabremos qué voces y qué aspecto mostrarle.</p>
+      <div class="opciones" data-campo="genero">
+        <button class="opcion" data-valor="femenina"><strong>Mujer</strong></button>
+        <button class="opcion" data-valor="masculina"><strong>Hombre</strong></button>
+      </div>
+    </div>
+
+    <div class="paso" data-paso="edad">
+      <h1>¿Qué edad le gustaría que aparente?</h1>
+      <p class="ayuda">Es solo su aspecto y su voz. Siempre será un acompañante artificial.</p>
+      <div class="opciones" data-campo="edad_aparente">
+        <button class="opcion" data-valor="joven"><strong>Más joven</strong><span>Unos 40 años</span></button>
+        <button class="opcion" data-valor="adulta"><strong>Mediana edad</strong><span>Unos 55 años</span></button>
+        <button class="opcion" data-valor="mayor"><strong>Mayor</strong><span>Unos 70 años</span></button>
+      </div>
+    </div>
+
+    <div class="paso" data-paso="nombre">
+      <h1>¿Cómo se llamará?</h1>
+      <p class="ayuda">Escriba un nombre o elija uno de los de abajo.</p>
+      <input type="text" id="nombre" maxlength="40" autocomplete="off" aria-label="Nombre del compañero">
+      <div class="sugerencias" id="sugerencias-nombre"></div>
+    </div>
+
+    <div class="paso" data-paso="trato">
+      <h1>¿Cómo le gustaría que le hable?</h1>
+      <div class="opciones" data-campo="trato">
+        <button class="opcion" data-valor="usted"><strong>De usted</strong><span>«¿Cómo está usted?»</span></button>
+        <button class="opcion" data-valor="tu"><strong>De tú</strong><span>«¿Cómo estás?»</span></button>
+      </div>
+      <p class="subtitulo">¿Y con qué palabras?</p>
+      <div class="opciones" data-campo="modismos">
+        <button class="opcion" data-valor="chileno"><strong>Bien chileno</strong><span>Con dichos de acá, con naturalidad</span></button>
+        <button class="opcion" data-valor="neutro"><strong>Español neutro</strong><span>Sin modismos</span></button>
+      </div>
+    </div>
+
+    <div class="paso" data-paso="personalidad">
+      <h1>¿Cómo le gustaría que sea?</h1>
+      <p class="ayuda">Elija hasta tres.</p>
+      <div class="sugerencias" id="rasgos"></div>
+      <p class="subtitulo">¿Para qué lo quiere más?</p>
+      <div class="opciones dos" data-campo="rol_preferente">
+        <button class="opcion" data-valor="amigo"><strong>Conversar</strong><span>Compañía y buena conversación</span></button>
+        <button class="opcion" data-valor="enfermero"><strong>Mi salud</strong><span>Remedios, controles, rutinas</span></button>
+        <button class="opcion" data-valor="consejero"><strong>Que me escuche</strong><span>Apoyo y consejo</span></button>
+        <button class="opcion" data-valor="equilibrado"><strong>Un poco de todo</strong></button>
+      </div>
+    </div>
+
+    <div class="paso" data-paso="voz">
+      <h1>Elija su voz</h1>
+      <p class="ayuda">Toque «Escuchar» para oír cada una.</p>
+      <div class="voces" id="voces"></div>
+      <p class="subtitulo">¿A qué velocidad?</p>
+      <div class="opciones" data-campo="velocidad_voz">
+        <button class="opcion" data-valor="0.85"><strong>Más lento</strong></button>
+        <button class="opcion" data-valor="1"><strong>Normal</strong></button>
+        <button class="opcion" data-valor="1.1"><strong>Más rápido</strong></button>
+      </div>
+      <p class="error" id="error-voz" role="alert"></p>
+    </div>
+
+    <div class="paso" data-paso="retrato">
+      <h1>Su aspecto</h1>
+      <p class="ayuda">Elija dónde le gustaría verlo y le mostraremos tres retratos. Son personas inventadas.</p>
+      <div class="opciones" data-campo="entorno">
+        <button class="opcion" data-valor="cocina"><strong>En la cocina</strong></button>
+        <button class="opcion" data-valor="jardin"><strong>En el jardín</strong></button>
+        <button class="opcion" data-valor="living"><strong>En el living</strong></button>
+      </div>
+      <p style="margin-top:22px"><button class="principal" id="crear-retratos">Mostrarme tres retratos</button></p>
+      <div class="esperando oculto" id="esperando" role="status">Creando los retratos… puede tardar hasta un minuto.</div>
+      <p class="ayuda oculto" id="restantes" style="margin-top:12px"></p>
+      <div class="retratos" id="retratos" style="margin-top:18px"></div>
+      <p class="error" id="error-retrato" role="alert"></p>
+    </div>
+
+    <div class="paso" data-paso="resumen">
+      <h1>Así quedó su compañero</h1>
+      <div class="resumen">
+        <div id="resumen-imagen"></div>
+        <dl id="resumen-datos"></dl>
+      </div>
+      <p style="margin-top:28px"><button class="principal" id="guardar">Guardar</button></p>
+      <div class="ok oculto" id="guardado" role="status"><p id="guardado-texto" style="margin:0 0 16px"></p><a class="principal" id="ir-conversar" href="/tablet" style="display:inline-grid;place-items:center;text-decoration:none">Ir a conversar</a></div>
+      <p class="error" id="error-guardar" role="alert"></p>
+    </div>
+  </section>
+</main>
+
+<nav class="pie oculto" id="pie"><div>
+  <button id="atras">Atrás</button>
+  <button id="siguiente">Siguiente</button>
+</div></nav>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const leer = (k, s = localStorage) => { try { return s.getItem(k); } catch { return null; } };
+  const escribir = (k, v, s = localStorage) => { try { s.setItem(k, v); } catch {} };
+
+  // Modo tablet (código del dispositivo) o modo equipo (cuenta del profesional + persona elegida).
+  const tokenTablet = leer('vincular.tokenDispositivo');
+  let token = tokenTablet || leer('vincular.tokenEquipo', sessionStorage);
+  let personaId = null;
+  const enTablet = () => Boolean(tokenTablet);
+  const rutas = {
+    perfilLeer: () => enTablet() ? '/api/mi-perfil-companero' : `/api/personas/${personaId}/perfil-companero`,
+    perfilGuardar: () => enTablet() ? '/api/mi-perfil-companero' : `/api/personas/${personaId}/perfil-companero`,
+    muestra: (v) => enTablet() ? `/api/voces/${encodeURIComponent(v)}/muestra` : `/api/personas/${personaId}/voces/${encodeURIComponent(v)}/muestra`,
+    retratos: () => enTablet() ? '/api/mi-companero/avatares' : `/api/personas/${personaId}/companero/avatares`,
+    imagen: (a) => enTablet() ? `/api/mi-companero/avatares/${a}/imagen` : `/api/personas/${personaId}/companero/avatares/${a}/imagen`,
+  };
+
+  async function api(metodo, url, cuerpo) {
+    const r = await fetch(url, {
+      method: metodo,
+      headers: { authorization: `Bearer ${token}`, ...(cuerpo ? { 'content-type': 'application/json' } : {}) },
+      ...(cuerpo ? { body: JSON.stringify(cuerpo) } : {}),
+    });
+    if (r.status === 401 && !enTablet()) { escribir('vincular.tokenEquipo', '', sessionStorage); mostrar('ingreso'); throw new Error('Su sesión venció. Ingrese de nuevo.'); }
+    if (!r.ok) { let m = 'No se pudo completar. Intente de nuevo.'; try { m = (await r.json()).error || m; } catch {} throw new Error(m); }
+    return r;
+  }
+  const blobUrls = new Map();
+  async function urlImagen(avatarId) {
+    if (blobUrls.has(avatarId)) return blobUrls.get(avatarId);
+    const r = await api('GET', rutas.imagen(avatarId));
+    const u = URL.createObjectURL(await r.blob());
+    blobUrls.set(avatarId, u);
+    return u;
+  }
+
+  function mostrar(seccion) {
+    for (const s of ['ingreso', 'elegir-persona', 'asistente']) $(s).classList.toggle('oculto', s !== seccion);
+    $('pie').classList.toggle('oculto', seccion !== 'asistente');
+  }
+
+  // ── Estado del diseño ────────────────────────────────────────────────────
+  const RASGOS = ['Cálido', 'Sereno', 'Paciente', 'Alegre', 'Bromista', 'Reflexivo', 'Conversador', 'Directo', 'Curioso'];
+  const NOMBRES = { femenina: ['Silvana', 'Carmen', 'Rosa', 'Javiera', 'Ana'], masculina: ['Carlos', 'Martín', 'Jorge', 'Iván', 'Pedro'] };
+  const ORDEN_EDAD = ['joven', 'adulta', 'mayor'];
+  const d = { genero: null, edad_aparente: null, nombre: '', trato: 'usted', modismos: 'chileno', rasgos: [], rol_preferente: 'equilibrado', voz_id: null, velocidad_voz: '1', entorno: 'living', avatar_id: null };
+  let voces = [], porDefecto = null;
+
+  const femenino = (rasgo) => d.genero === 'femenina' ? rasgo.replace(/o$/, 'a').replace(/or$/, 'ora') : rasgo;
+  function personalidadTexto() {
+    const r = d.rasgos.map((x) => femenino(x).toLowerCase());
+    if (r.length === 0) return 'Cálido, paciente y atento.';
+    const lista = r.length === 1 ? r[0] : `${r.slice(0, -1).join(', ')} y ${r.at(-1)}`;
+    return lista.charAt(0).toUpperCase() + lista.slice(1) + '.';
+  }
+  const formaDeHablar = () => d.modismos === 'chileno'
+    ? 'Habla con calma, en frases cortas y claras. Usa algunos dichos chilenos con naturalidad, sin exagerar.'
+    : 'Habla con calma, en frases cortas y claras, en español neutro y sin modismos.';
+  // Desde un perfil guardado se recuperan los rasgos y los modismos que se eligieron aquí.
+  function desdePerfil(p) {
+    if (!p) return;
+    Object.assign(d, {
+      genero: p.genero, edad_aparente: p.edad_aparente, nombre: p.nombre || '', trato: p.trato || 'usted',
+      rol_preferente: p.rol_preferente || 'equilibrado', voz_id: p.voz_id, velocidad_voz: String(p.velocidad_voz ?? 1), avatar_id: p.avatar_id,
+      modismos: /neutro/.test(p.forma_de_hablar || '') ? 'neutro' : 'chileno',
+    });
+    const texto = (p.personalidad || '').toLowerCase();
+    d.rasgos = RASGOS.filter((x) => texto.includes(x.toLowerCase().slice(0, -1))).slice(0, 3);
+  }
+
+  // ── Pasos ────────────────────────────────────────────────────────────────
+  const PASOS = ['genero', 'edad', 'nombre', 'trato', 'personalidad', 'voz', 'retrato', 'resumen'];
+  let paso = 0;
+  const listo = {
+    genero: () => Boolean(d.genero),
+    edad: () => Boolean(d.edad_aparente),
+    nombre: () => d.nombre.trim().length >= 1,
+    trato: () => true,
+    personalidad: () => true,
+    voz: () => Boolean(d.voz_id),
+    retrato: () => true,
+    resumen: () => true,
+  };
+  function irA(n) {
+    paso = Math.max(0, Math.min(PASOS.length - 1, n));
+    document.querySelectorAll('.paso').forEach((el) => el.classList.toggle('oculto', el.dataset.paso !== PASOS[paso]));
+    $('progreso').textContent = `Paso ${paso + 1} de ${PASOS.length}`;
+    $('pista').style.width = `${((paso + 1) / PASOS.length) * 100}%`;
+    $('atras').classList.toggle('oculto', paso === 0);
+    $('siguiente').classList.toggle('oculto', paso === PASOS.length - 1);
+    const p = PASOS[paso];
+    if (p === 'nombre') pintarNombres();
+    if (p === 'personalidad') pintarRasgos();
+    if (p === 'voz') pintarVoces();
+    if (p === 'retrato') cargarRetratos();
+    if (p === 'resumen') pintarResumen();
+    actualizar();
+    window.scrollTo({ top: 0 });
+    document.querySelector(`.paso[data-paso="${p}"] h1`)?.focus?.();
+  }
+  function actualizar() {
+    $('siguiente').disabled = !listo[PASOS[paso]]();
+    document.querySelectorAll('.opciones[data-campo]').forEach((g) => {
+      const v = String(d[g.dataset.campo] ?? '');
+      g.querySelectorAll('.opcion').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.valor === v)));
+    });
+  }
+  document.querySelectorAll('.opciones[data-campo]').forEach((g) => g.addEventListener('click', (ev) => {
+    const b = ev.target.closest('.opcion');
+    if (!b) return;
+    d[g.dataset.campo] = b.dataset.valor;
+    if (g.dataset.campo === 'genero') { d.voz_id = null; d.avatar_id = null; }
+    actualizar();
+  }));
+  $('atras').addEventListener('click', () => irA(paso - 1));
+  $('siguiente').addEventListener('click', () => irA(paso + 1));
+
+  function boton(texto, clase, alPulsar) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = clase; b.textContent = texto;
+    b.addEventListener('click', alPulsar);
+    return b;
+  }
+  function pintarNombres() {
+    $('nombre').value = d.nombre;
+    const caja = $('sugerencias-nombre');
+    caja.replaceChildren(...(NOMBRES[d.genero] || []).map((n) => {
+      const b = boton(n, 'chip', () => { d.nombre = n; $('nombre').value = n; pintarNombres(); actualizar(); });
+      b.setAttribute('aria-pressed', String(d.nombre === n));
+      return b;
+    }));
+  }
+  $('nombre').addEventListener('input', (ev) => {
+    d.nombre = ev.target.value;
+    $('sugerencias-nombre').querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c.textContent === d.nombre)));
+    actualizar();
+  });
+
+  function pintarRasgos() {
+    $('rasgos').replaceChildren(...RASGOS.map((r) => {
+      const b = boton(femenino(r), 'chip', () => {
+        if (d.rasgos.includes(r)) d.rasgos = d.rasgos.filter((x) => x !== r);
+        else if (d.rasgos.length < 3) d.rasgos = [...d.rasgos, r];
+        pintarRasgos();
+      });
+      b.setAttribute('aria-pressed', String(d.rasgos.includes(r)));
+      return b;
+    }));
+  }
+
+  // ── Voces ────────────────────────────────────────────────────────────────
+  let reproductor = null;
+  function pintarVoces() {
+    $('error-voz').textContent = '';
+    const objetivo = ORDEN_EDAD.indexOf(d.edad_aparente);
+    const lista = voces
+      .filter((v) => !d.genero || v.genero === d.genero)
+      .sort((a, b) => Math.abs(ORDEN_EDAD.indexOf(a.edad) - objetivo) - Math.abs(ORDEN_EDAD.indexOf(b.edad) - objetivo));
+    if (!d.voz_id && lista.length) d.voz_id = lista[0].id;
+    $('voces').replaceChildren(...lista.map((v) => {
+      const fila = document.createElement('div');
+      fila.className = 'voz';
+      fila.dataset.elegida = String(v.id === d.voz_id);
+      const info = document.createElement('div');
+      const n = document.createElement('strong'); n.textContent = v.nombre;
+      const t = document.createElement('span'); t.textContent = v.descripcion || '';
+      info.append(n, t);
+      const oir = boton('Escuchar', '', async () => {
+        $('error-voz').textContent = '';
+        oir.disabled = true; oir.textContent = 'Cargando…';
+        try {
+          const r = await api('GET', rutas.muestra(v.id));
+          if (reproductor) reproductor.pause();
+          reproductor = new Audio(URL.createObjectURL(await r.blob()));
+          await reproductor.play();
+        } catch (e) { $('error-voz').textContent = e.message; }
+        finally { oir.disabled = false; oir.textContent = 'Escuchar'; }
+      });
+      const elegir = boton(v.id === d.voz_id ? 'Elegida' : 'Elegir', 'elegir', () => { d.voz_id = v.id; pintarVoces(); actualizar(); });
+      fila.append(info, oir, elegir);
+      return fila;
+    }));
+    actualizar();
+  }
+
+  // ── Retratos ─────────────────────────────────────────────────────────────
+  async function pintarRetratos(ids) {
+    const caja = $('retratos');
+    const nodos = [];
+    for (const id of ids) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'retrato';
+      b.setAttribute('aria-pressed', String(id === d.avatar_id));
+      b.setAttribute('aria-label', 'Elegir este retrato');
+      const img = document.createElement('img');
+      img.alt = 'Retrato propuesto';
+      try { img.src = await urlImagen(id); } catch { continue; }
+      b.append(img);
+      b.addEventListener('click', () => { d.avatar_id = id; caja.querySelectorAll('.retrato').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); });
+      nodos.push(b);
+    }
+    caja.replaceChildren(...nodos);
+  }
+  async function cargarRetratos() {
+    $('error-retrato').textContent = '';
+    try {
+      const r = await (await api('GET', rutas.retratos())).json();
+      mostrarRestantes(r.rondasRestantesHoy);
+      const deEste = r.retratos.filter((x) => (!d.genero || x.genero === d.genero)).map((x) => x.id);
+      if (d.avatar_id && !deEste.includes(d.avatar_id)) deEste.unshift(d.avatar_id);
+      await pintarRetratos(deEste.slice(0, 6));
+    } catch (e) { $('error-retrato').textContent = e.message; }
+  }
+  function mostrarRestantes(n) {
+    $('restantes').classList.remove('oculto');
+    $('restantes').textContent = n > 0 ? `Hoy puede pedir ${n === 1 ? 'un grupo más' : `${n} grupos más`} de retratos.` : 'Por hoy ya no se pueden crear más retratos; puede elegir entre los que hay.';
+    $('crear-retratos').disabled = n <= 0;
+  }
+  $('crear-retratos').addEventListener('click', async () => {
+    $('error-retrato').textContent = '';
+    $('crear-retratos').disabled = true;
+    $('esperando').classList.remove('oculto');
+    try {
+      const r = await (await api('POST', rutas.retratos(), { genero: d.genero, edad: d.edad_aparente, entorno: d.entorno })).json();
+      d.avatar_id = r.propuestas[0] ?? d.avatar_id;
+      await pintarRetratos(r.propuestas);
+      const l = await (await api('GET', rutas.retratos())).json();
+      mostrarRestantes(l.rondasRestantesHoy);
+    } catch (e) {
+      $('error-retrato').textContent = e.message;
+      $('crear-retratos').disabled = false;
+    } finally {
+      $('esperando').classList.add('oculto');
+    }
+  });
+
+  // ── Resumen y guardado ───────────────────────────────────────────────────
+  async function pintarResumen() {
+    $('guardado').classList.add('oculto');
+    $('error-guardar').textContent = '';
+    const caja = $('resumen-imagen');
+    if (d.avatar_id) {
+      const img = document.createElement('img');
+      img.alt = `Retrato de ${d.nombre}`;
+      try { img.src = await urlImagen(d.avatar_id); caja.replaceChildren(img); } catch { caja.replaceChildren(); }
+    } else {
+      const s = document.createElement('div'); s.className = 'sin-retrato'; s.textContent = (d.nombre || '?').charAt(0).toUpperCase();
+      caja.replaceChildren(s);
+    }
+    const voz = voces.find((v) => v.id === d.voz_id);
+    const filas = [
+      ['Nombre', d.nombre],
+      ['Es', `${d.genero === 'femenina' ? 'Mujer' : 'Hombre'}, ${{ joven: 'más joven', adulta: 'de mediana edad', mayor: 'mayor' }[d.edad_aparente] || ''}`],
+      ['Le habla', `${d.trato === 'tu' ? 'De tú' : 'De usted'}, ${d.modismos === 'chileno' ? 'bien chileno' : 'en español neutro'}`],
+      ['Cómo es', personalidadTexto()],
+      ['Voz', `${voz ? voz.nombre : 'Por defecto'} (${{ '0.85': 'más lenta', '1': 'normal', '1.1': 'más rápida' }[d.velocidad_voz]})`],
+    ];
+    $('resumen-datos').replaceChildren(...filas.flatMap(([k, v]) => { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; return [dt, dd]; }));
+  }
+  $('guardar').addEventListener('click', async () => {
+    $('error-guardar').textContent = '';
+    $('guardar').disabled = true;
+    try {
+      await api('PUT', rutas.perfilGuardar(), {
+        nombre: d.nombre.trim(), personalidad: personalidadTexto(), forma_de_hablar: formaDeHablar(), trato: d.trato,
+        voz_id: d.voz_id, avatar_id: d.avatar_id, rol_preferente: d.rol_preferente, velocidad_voz: Number(d.velocidad_voz),
+        genero: d.genero, edad_aparente: d.edad_aparente,
+      });
+      $('guardado-texto').textContent = enTablet() ? `Listo. ${d.nombre} ya está esperándole para conversar.` : 'Listo. El compañero de esta persona quedó guardado; la tablet lo mostrará al volver a abrirse.';
+      $('ir-conversar').classList.toggle('oculto', !enTablet());
+      $('guardado').classList.remove('oculto');
+    } catch (e) { $('error-guardar').textContent = e.message; }
+    finally { $('guardar').disabled = false; }
+  });
+
+  // ── Inicio ───────────────────────────────────────────────────────────────
+  async function empezar() {
+    mostrar('asistente');
+    $('volver').classList.toggle('oculto', !enTablet());
+    try {
+      const [v, p] = await Promise.all([api('GET', '/api/voces').then((r) => r.json()), api('GET', rutas.perfilLeer()).then((r) => r.json())]);
+      voces = v.voces; porDefecto = v.porDefecto;
+      desdePerfil(p.perfil);
+    } catch (e) { $('error-guardar').textContent = e.message; }
+    irA(0);
+  }
+  async function elegirPersona() {
+    mostrar('elegir-persona');
+    try {
+      const r = await (await api('GET', '/api/mis-personas')).json();
+      $('lista-personas').replaceChildren(...r.personas.map((p) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'opcion';
+        const n = document.createElement('strong'); n.textContent = p.nombre;
+        const s = document.createElement('span'); s.textContent = `${p.comuna}${p.companero ? ` · compañero: ${p.companero}` : ' · sin compañero'}`;
+        b.append(n, s);
+        b.addEventListener('click', () => { personaId = p.id; empezar(); });
+        return b;
+      }));
+      if (r.personas.length === 0) $('error-personas').textContent = 'Todavía no tiene personas asignadas.';
+    } catch (e) { $('error-personas').textContent = e.message; }
+  }
+  $('form-ingreso').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    $('error-ingreso').textContent = '';
+    try {
+      const r = await fetch('/api/auth/ingresar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: $('email').value, contrasena: $('contrasena').value }) });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'No se pudo ingresar');
+      token = (await r.json()).token;
+      escribir('vincular.tokenEquipo', token, sessionStorage);
+      $('contrasena').value = '';
+      elegirPersona();
+    } catch (e) { $('error-ingreso').textContent = e.message; }
+  });
+
+  if (enTablet()) empezar();
+  else if (token) elegirPersona();
+  else mostrar('ingreso');
+})();
+</script>
+</body>
+</html>

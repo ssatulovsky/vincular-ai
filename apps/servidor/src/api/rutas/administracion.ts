@@ -9,9 +9,20 @@ import { hashContrasena } from '../../seguridad/autenticacion.ts';
 import { exigirPermiso } from '../../seguridad/permisos.ts';
 import { nuevoToken } from '../../seguridad/tokens.ts';
 import { ErrorHttp, exigirActor, type Aplicacion } from '../servidor.ts';
+import { ErrorAvatares, exigirAvatarPropio } from '../../companero/avatares.ts';
 
 const uuid = z.string().uuid();
 const ROLES = ['supervisor_clinico', 'enfermera_enlace', 'gerontologo', 'guardia', 'admin_plataforma'] as const;
+
+/** El avatar elegido debe ser un retrato generado para esa misma persona. */
+async function exigirAvatarDe(app: Aplicacion, personaId: string, avatarId: string | null): Promise<void> {
+  try {
+    await exigirAvatarPropio(app.bd, personaId, avatarId);
+  } catch (e) {
+    if (e instanceof ErrorAvatares) throw new ErrorHttp(e.estado, e.message);
+    throw e;
+  }
+}
 
 /** Altas del backoffice: cuentas, personas, contactos, dispositivos y asignaciones. */
 export const rutasAdministracion =
@@ -135,6 +146,7 @@ export const rutasAdministracion =
       await exigirPermiso(app.bd, actor, 'perfil_companero.editar', id);
       const p = esquemaPerfil.parse(req.body);
       exigirVozOfrecida(app, p.voz_id);
+      await exigirAvatarDe(app, id, p.avatar_id);
       await transaccion(app.bd, async (c) => {
         await guardarPerfil(c, id, p);
         await auditar(c, actor, { accion: 'perfil_companero.editar', recursoTipo: 'perfil_companero', recursoId: id, personaId: id });

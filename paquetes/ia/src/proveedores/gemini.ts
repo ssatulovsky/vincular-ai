@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { esquemaParaGemini, pedirJson } from '../http.ts';
-import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type PeticionEmbeddings, type PeticionModelo, type RespuestaEmbeddings, type RespuestaModelo } from '../tipos.ts';
+import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type PeticionEmbeddings, type PeticionImagen, type PeticionModelo, type RespuestaEmbeddings, type RespuestaImagen, type RespuestaModelo } from '../tipos.ts';
 
 interface Parte {
   text?: string;
@@ -118,6 +118,26 @@ export class ModeloGemini implements ModeloIA {
     return { vectores: vectores.map(normalizarVector), uso: { tokensEntrada: 0, tokensSalida: 0 } };
   }
 
+  /**
+   * Imagen con la API Interactions de Gemini (la que documenta Google para los modelos de imagen).
+   * Las imágenes generadas llevan la marca de agua SynthID de Google.
+   */
+  async generarImagen(p: PeticionImagen): Promise<RespuestaImagen> {
+    const datos = await pedirJson('gemini', `${this.o.url ?? URL_GEMINI}/interactions`, {
+      cabeceras: { 'x-goog-api-key': this.o.apiKey },
+      timeoutMs: this.o.timeoutMs ?? 60_000,
+      senal: p.senal,
+      cuerpo: {
+        model: this.o.modelo,
+        input: [{ type: 'text', text: p.descripcion }],
+        response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: p.proporcion ?? '1:1' },
+      },
+    });
+    const img = extraerImagen(datos);
+    if (!img) throw new ErrorProveedor('gemini', 'La respuesta no trae una imagen', undefined, JSON.stringify(datos).slice(0, 300));
+    return img;
+  }
+
   async listarModelos(): Promise<string[]> {
     const datos = (await pedirJson('gemini', `${this.o.url ?? URL_GEMINI}/models?pageSize=200`, {
       metodo: 'GET',
@@ -128,6 +148,28 @@ export class ModeloGemini implements ModeloIA {
       .filter((m) => m.supportedGenerationMethods?.some((x) => x === 'generateContent' || x === 'embedContent'))
       .map((m) => m.name.replace(/^models\//, ''));
   }
+}
+
+/**
+ * Busca la imagen en la respuesta de Interactions: `output_image.data` (lo que leen los ejemplos de
+ * Google) o, si no está, el último bloque `{ type: 'image', data }` dentro de `steps`.
+ */
+export function extraerImagen(datos: unknown): RespuestaImagen | null {
+  const o = datos as { output_image?: { data?: string; mime_type?: string } } | null;
+  const directo = o?.output_image?.data;
+  if (typeof directo === 'string' && directo.length > 0) return { imagen: Buffer.from(directo, 'base64'), mime: o?.output_image?.mime_type ?? 'image/jpeg' };
+  let ultimo: { data: string; mime_type?: string } | null = null;
+  const recorrer = (x: unknown): void => {
+    if (Array.isArray(x)) x.forEach(recorrer);
+    else if (x && typeof x === 'object') {
+      const r = x as Record<string, unknown>;
+      if (r.type === 'image' && typeof r.data === 'string' && r.data.length > 0) ultimo = { data: r.data, ...(typeof r.mime_type === 'string' ? { mime_type: r.mime_type } : {}) };
+      Object.values(r).forEach(recorrer);
+    }
+  };
+  recorrer(datos);
+  const u = ultimo as { data: string; mime_type?: string } | null;
+  return u ? { imagen: Buffer.from(u.data, 'base64'), mime: u.mime_type ?? 'image/jpeg' } : null;
 }
 
 function normalizarVector(v: number[]): number[] {

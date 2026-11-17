@@ -43,7 +43,9 @@
   .emergencia span { display: block; font-size: 22px; font-weight: 400; margin-top: 4px; }
 
   .cabecera { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
-  .cabecera h1 { margin: 0; font-size: 34px; font-weight: 700; }
+  .cabecera h1 { margin: 0; font-size: 34px; font-weight: 700; display: flex; align-items: center; gap: 16px; }
+  .cabecera h1 img { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; border: 4px solid var(--blanco); }
+  .cabecera a.disenar { font-size: 22px; font-weight: 700; color: var(--botella); }
   .estado { color: var(--tinta-suave); font-size: 24px; }
 
   /* El botón es el compañero: un dial redondo cuyo anillo crece con la voz de la persona. */
@@ -121,8 +123,11 @@
     </div>
   </section>
   <header class="cabecera">
-    <h1 id="nombre">Mi compañero</h1>
-    <div class="estado" id="estado" aria-live="polite">Conectando…</div>
+    <h1><img id="retrato" class="oculto" alt=""><span id="nombre">Mi compañero</span></h1>
+    <div style="display:grid;justify-items:end;gap:4px">
+      <div class="estado" id="estado" aria-live="polite">Conectando…</div>
+      <a class="disenar" href="/companero">Mi compañero</a>
+    </div>
   </header>
   <div class="centro">
     <button class="dial" id="dial" data-estado="desconectado" aria-describedby="estado">Toque para hablar</button>
@@ -166,6 +171,23 @@
     $('repetir').disabled = e !== 'libre' || ultimaRespuesta.length === 0;
   }
 
+  // ── Nombre y retrato del compañero ──────────────────────────────────────
+  async function cargarCompanero() {
+    const token = leerToken();
+    try {
+      const r = await fetch('/api/mi-perfil-companero', { headers: { authorization: `Bearer ${token}` } });
+      if (!r.ok) return;
+      const { perfil } = await r.json();
+      if (!perfil) return;
+      $('nombre').textContent = perfil.nombre;
+      document.title = perfil.nombre;
+      if (perfil.avatar_id) {
+        const img = await fetch(`/api/mi-companero/avatares/${encodeURIComponent(perfil.avatar_id)}/imagen`, { headers: { authorization: `Bearer ${token}` } });
+        if (img.ok) { $('retrato').src = URL.createObjectURL(await img.blob()); $('retrato').classList.remove('oculto'); }
+      }
+    } catch {}
+  }
+
   // ── Conexión ────────────────────────────────────────────────────────────
   function conectar() {
     const token = leerToken();
@@ -191,6 +213,7 @@
         intentos = 0;
         vaciarCola();
         cargarAgenda();
+        cargarCompanero();
         emergencia(m.modoEmergencia, m.emergencia);
         window.__emergencia = m.emergencia;
         fijarEstado('libre');

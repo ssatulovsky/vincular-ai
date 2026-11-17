@@ -17,6 +17,9 @@ export const esquemaPerfil = z
     rol_preferente: z.enum(['equilibrado', 'amigo', 'enfermero', 'consejero', 'puente']).default('equilibrado'),
     // La base devuelve numeric como texto: se convierte.
     velocidad_voz: z.coerce.number().min(0.7).max(1.2).default(1),
+    // Cómo se presenta el compañero: filtra voces y retratos en la pantalla de diseño.
+    genero: z.enum(['femenina', 'masculina']).nullable().default(null),
+    edad_aparente: z.enum(['joven', 'adulta', 'mayor']).nullable().default(null),
   })
   .superRefine((p, ctx) => {
     const texto = `${p.nombre}. ${p.personalidad}. ${p.forma_de_hablar}`;
@@ -47,9 +50,11 @@ export const PERFIL_POR_DEFECTO: PerfilCompanero = {
   avatar_id: null,
   rol_preferente: 'equilibrado',
   velocidad_voz: 1,
+  genero: null,
+  edad_aparente: null,
 };
 
-const COLUMNAS = 'nombre, personalidad, forma_de_hablar, trato, voz_id, avatar_id, rol_preferente, velocidad_voz';
+const COLUMNAS = 'nombre, personalidad, forma_de_hablar, trato, voz_id, avatar_id, rol_preferente, velocidad_voz, genero, edad_aparente';
 
 export async function leerPerfil(bd: Consultable, personaId: string): Promise<PerfilCompanero | null> {
   const r = await bd.query(`SELECT ${COLUMNAS} FROM perfil_companero WHERE persona_id = $1`, [personaId]);
@@ -58,10 +63,10 @@ export async function leerPerfil(bd: Consultable, personaId: string): Promise<Pe
 
 export async function guardarPerfil(bd: Consultable, personaId: string, p: PerfilCompanero): Promise<void> {
   await bd.query(
-    `INSERT INTO perfil_companero (persona_id, ${COLUMNAS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO perfil_companero (persona_id, ${COLUMNAS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (persona_id) DO UPDATE SET nombre = EXCLUDED.nombre, personalidad = EXCLUDED.personalidad, forma_de_hablar = EXCLUDED.forma_de_hablar,
        trato = EXCLUDED.trato, voz_id = EXCLUDED.voz_id, avatar_id = EXCLUDED.avatar_id, rol_preferente = EXCLUDED.rol_preferente,
-       velocidad_voz = EXCLUDED.velocidad_voz, actualizado_en = now()`,
-    [personaId, p.nombre, p.personalidad, p.forma_de_hablar, p.trato, p.voz_id, p.avatar_id, p.rol_preferente, p.velocidad_voz],
+       velocidad_voz = EXCLUDED.velocidad_voz, genero = EXCLUDED.genero, edad_aparente = EXCLUDED.edad_aparente, actualizado_en = now()`,
+    [personaId, p.nombre, p.personalidad, p.forma_de_hablar, p.trato, p.voz_id, p.avatar_id, p.rol_preferente, p.velocidad_voz, p.genero, p.edad_aparente],
   );
 }

@@ -18,7 +18,7 @@ export const CONTACTOS = { samu: '131', prevencionSuicidio: '*4141' };
  */
 export function configDePrueba(extra: Partial<Config> = {}): Config {
   const tareas = Object.fromEntries(
-    (['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'] as Tarea[]).map((t) => [t, { proveedor: 'gemini', modelo: 'modelo-inalcanzable', timeoutMs: 1500 }]),
+    (['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings', 'imagenes'] as Tarea[]).map((t) => [t, { proveedor: 'gemini', modelo: 'modelo-inalcanzable', timeoutMs: 1500 }]),
   ) as Config['ia']['tareas'];
   return {
     entorno: 'test',
@@ -35,6 +35,7 @@ export function configDePrueba(extra: Partial<Config> = {}): Config {
     memoriaMinutosInactividad: 30,
     medicacion: { segundoAvisoMin: 30, sinRespuestaMin: 30, vencimientoMin: 60 },
     planificador: false,
+    companero: { maxRondasAvatarDia: 2 },
     // Twilio apunta a un puerto cerrado: los envíos fallan de verdad y la cadena avanza.
     escalamiento: {
       twilio: { accountSid: 'AC-prueba', authToken: 'token-de-prueba', origen: '+15005550006', url: 'http://127.0.0.1:9', timeoutMs: 1500 },

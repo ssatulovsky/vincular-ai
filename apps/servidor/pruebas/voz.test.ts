@@ -121,6 +121,18 @@ describe('voces del onboarding', () => {
   });
 });
 
+describe('pantalla de diseño del compañero', () => {
+  it('se sirve con la misma política estricta, sin micrófono y con imágenes blob para los retratos', async () => {
+    const r = await e.f.inject({ method: 'GET', url: '/companero' });
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(r.headers['content-security-policy']).toContain("img-src 'self' data: blob:");
+    expect(r.headers['permissions-policy']).toBe('microphone=()');
+    // Los datos de la persona se pintan con textContent, nunca con innerHTML.
+    expect(r.body).not.toContain('innerHTML');
+  });
+});
+
 describe('prototipo de la tablet', () => {
   it('se sirve con una política de seguridad de contenido estricta', async () => {
     const r = await e.f.inject({ method: 'GET', url: '/tablet' });

@@ -31,13 +31,13 @@ export async function llamarModelo(
   const inicio = performance.now();
   try {
     const r = await modelo.responder(peticion);
-    await registrar(bd, tarea, modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), r.uso.tokensEntrada, r.uso.tokensSalida, null);
+    await registrarUso(bd, tarea, modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), r.uso.tokensEntrada, r.uso.tokensSalida, null);
     return r;
   } catch (e) {
     // El detalle del proveedor (p. ej. qué campo rechazó) se guarda recortado: sin él, un HTTP 400
     // no se puede diagnosticar. La clave va en cabeceras y nunca aparece en ese texto.
     const detalle = e instanceof ErrorProveedor ? `${e.message}${e.estado ? ` (${e.estado})` : ''}${e.interno ? `: ${e.interno.replace(/\s+/g, ' ').slice(0, 300)}` : ''}` : (e as Error).message;
-    await registrar(bd, tarea, modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), 0, 0, detalle).catch(() => undefined);
+    await registrarUso(bd, tarea, modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), 0, 0, detalle).catch(() => undefined);
     throw e;
   }
 }
@@ -56,15 +56,16 @@ export async function incrustarTextos(
   try {
     const r = await modelo.incrustar({ textos, uso, dimension: DIMENSION_EMBEDDINGS });
     const tokensAprox = Math.ceil(textos.join(' ').length / 4);
-    await registrar(bd, 'embeddings', modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), r.uso.tokensEntrada || tokensAprox, 0, null);
+    await registrarUso(bd, 'embeddings', modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), r.uso.tokensEntrada || tokensAprox, 0, null);
     return { vectores: r.vectores, proveedor: modelo.proveedor, modelo: modelo.modelo };
   } catch (e) {
-    await registrar(bd, 'embeddings', modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), 0, 0, (e as Error).message).catch(() => undefined);
+    await registrarUso(bd, 'embeddings', modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), 0, 0, (e as Error).message).catch(() => undefined);
     throw e;
   }
 }
 
-async function registrar(
+/** Registra un uso de modelo (también lo usan los retratos del compañero). */
+export async function registrarUso(
   bd: Consultable,
   tarea: Tarea,
   proveedor: string,
