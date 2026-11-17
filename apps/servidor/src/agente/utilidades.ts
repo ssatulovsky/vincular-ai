@@ -52,3 +52,8 @@ export function flujoDeTexto(texto: string): ReadableStream<string> {
     },
   });
 }
+
+/** Silencio (s) que ElevenLabs espera para cerrar el turno: su API acepta entre 0,3 y 3 s. */
+export function silencioFinDeTurno(segundos: number): number {
+  return Math.min(3, Math.max(0.3, Math.round(segundos * 10) / 10));
+}

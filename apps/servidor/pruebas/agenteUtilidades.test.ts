@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validarCatalogo } from '@vincular/voz';
-import { flujoDeTexto, personaDelParticipante, ultimoMensajeDeLaPersona, vozParaTiempoReal } from '../src/agente/utilidades.ts';
+import { flujoDeTexto, personaDelParticipante, silencioFinDeTurno, ultimoMensajeDeLaPersona, vozParaTiempoReal } from '../src/agente/utilidades.ts';
 
 const P = '0b6f2c4e-1d3a-4c5b-9e8f-7a6b5c4d3e2f';
 const D = '1c7a3d5f-2e4b-4d6c-8f9a-8b7c6d5e4f3a';
@@ -63,5 +63,13 @@ describe('agente: historial y respuesta', () => {
     const trozos: string[] = [];
     for await (const t of flujoDeTexto('Buenos días, señora Elena.')) trozos.push(t);
     expect(trozos).toEqual(['Buenos días, señora Elena.']);
+  });
+});
+
+describe('agente: fin de turno', () => {
+  it('el silencio enviado a ElevenLabs queda dentro de 0,3–3 s', () => {
+    expect(silencioFinDeTurno(1.2)).toBe(1.2);
+    expect(silencioFinDeTurno(0.1)).toBe(0.3);
+    expect(silencioFinDeTurno(4)).toBe(3);
   });
 });
