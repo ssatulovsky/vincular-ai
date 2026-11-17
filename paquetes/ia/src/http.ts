@@ -31,15 +31,27 @@ export async function pedirJson(
   }
 }
 
-/** Quita del JSON Schema claves que Gemini no acepta. */
+/**
+ * Adapta un JSON Schema a lo que acepta la API de Gemini:
+ * - quita claves que no reconoce ($schema, additionalProperties, $id, $defs);
+ * - `enum` solo se admite en textos: un enum de números o booleanos devuelve HTTP 400. Se quita y
+ *   los valores permitidos pasan a la descripción; la validación real la hace el servidor (zod).
+ */
 export function esquemaParaGemini(esquema: unknown): unknown {
   if (Array.isArray(esquema)) return esquema.map(esquemaParaGemini);
   if (esquema && typeof esquema === 'object') {
-    return Object.fromEntries(
-      Object.entries(esquema as Record<string, unknown>)
+    const o = esquema as Record<string, unknown>;
+    const salida: Record<string, unknown> = Object.fromEntries(
+      Object.entries(o)
         .filter(([k]) => !['$schema', 'additionalProperties', '$id', '$defs'].includes(k))
         .map(([k, v]) => [k, esquemaParaGemini(v)]),
     );
+    if (Array.isArray(o.enum) && o.enum.some((v) => typeof v !== 'string')) {
+      delete salida.enum;
+      const permitidos = `Valores permitidos: ${o.enum.join(', ')}.`;
+      salida.description = typeof o.description === 'string' && o.description ? `${o.description}. ${permitidos}` : permitidos;
+    }
+    return salida;
   }
   return esquema;
 }

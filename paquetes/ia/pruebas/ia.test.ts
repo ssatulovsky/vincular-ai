@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { esquemaParaGemini } from '../src/http.ts';
 import { ErrorProveedor, ModelosPorTarea, crearModelo, extraerObjetoJson, type ConfigModeloTarea, type Tarea } from '../src/index.ts';
 
 const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'];
@@ -83,5 +84,26 @@ describe('embeddings', () => {
   it('Claude no ofrece embeddings y lo dice con un error claro', async () => {
     const m = crearModelo({ proveedor: 'anthropic', modelo: 'x', timeoutMs: 1000 }, 'k');
     await expect(m.incrustar({ textos: ['hola'], uso: 'consulta', dimension: 768 })).rejects.toThrow(/no ofrece embeddings/);
+  });
+});
+
+describe('esquemaParaGemini', () => {
+  it('quita los enum no textuales (Gemini responde 400) y deja los valores en la descripción', () => {
+    const r = esquemaParaGemini({ type: 'object', properties: { nivel: { type: 'integer', enum: [1, 2, 3] }, motivo: { type: 'string' } }, required: ['nivel'] }) as {
+      properties: { nivel: Record<string, unknown> };
+    };
+    expect(r.properties.nivel.enum).toBeUndefined();
+    expect(r.properties.nivel.type).toBe('integer');
+    expect(r.properties.nivel.description).toBe('Valores permitidos: 1, 2, 3.');
+  });
+  it('mantiene los enum de texto y las descripciones existentes', () => {
+    expect(esquemaParaGemini({ type: 'string', enum: ['a', 'b'], description: 'Capa' })).toEqual({ type: 'string', enum: ['a', 'b'], description: 'Capa' });
+    expect((esquemaParaGemini({ type: 'number', enum: [1], description: 'Nivel' }) as { description: string }).description).toBe('Nivel. Valores permitidos: 1.');
+  });
+  it('quita las claves que Gemini no reconoce, también anidadas', () => {
+    expect(esquemaParaGemini({ $schema: 'x', type: 'object', additionalProperties: false, properties: { a: { type: 'object', additionalProperties: false } } })).toEqual({
+      type: 'object',
+      properties: { a: { type: 'object' } },
+    });
   });
 });

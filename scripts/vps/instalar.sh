@@ -37,6 +37,14 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q curl ca-certificates gnupg git openssl lsb-release debian-keyring debian-archive-keyring apt-transport-https
 
+paso "Dirección pública"
+if [ -z "$DOMINIO" ]; then
+  IP="$(curl -fsS4 https://api.ipify.org || true)"
+  [ -n "$IP" ] || error "No pude averiguar la IP pública. Ejecute: sudo bash instalar.sh <su-dominio>"
+  DOMINIO="${IP//./-}.sslip.io"
+fi
+echo "https://$DOMINIO"
+
 paso "PostgreSQL 16 y pgvector (repositorio oficial de PostgreSQL)"
 if [ ! -f /etc/apt/sources.list.d/pgdg.list ]; then
   install -d /usr/share/postgresql-common/pgdg
@@ -107,6 +115,7 @@ if [ ! -f "$ENV" ]; then
   fijar DATABASE_URL "postgres://vincular_app:${CLAVE_APP}@localhost:${PUERTO_PG}/vincular"
   fijar DATABASE_URL_MIGRACIONES "postgres://vincular_owner:${CLAVE_OWNER}@localhost:${PUERTO_PG}/vincular"
   fijar CLAVE_CIFRADO "$(openssl rand -hex 32)"
+  fijar BASE_URL_PUBLICA "https://$DOMINIO"
   chown "$USUARIO:$USUARIO" "$ENV"
   chmod 600 "$ENV"
   echo "Creado $ENV (solo lo puede leer el usuario $USUARIO)."
@@ -140,11 +149,6 @@ systemctl daemon-reload
 systemctl enable vincular >/dev/null
 
 paso "HTTPS con Caddy"
-if [ -z "$DOMINIO" ]; then
-  IP="$(curl -fsS4 https://api.ipify.org || true)"
-  [ -n "$IP" ] || error "No pude averiguar la IP pública. Ejecute: sudo bash instalar.sh <su-dominio>"
-  DOMINIO="${IP//./-}.sslip.io"
-fi
 OCUPADO="$(ss -ltnpH '( sport = :80 or sport = :443 )' 2>/dev/null | grep -v caddy || true)"
 if [ -n "$OCUPADO" ]; then
   aviso "Los puertos 80/443 ya los usa otro programa (¿nginx o apache?). No instalo Caddy."

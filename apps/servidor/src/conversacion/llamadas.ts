@@ -34,7 +34,9 @@ export async function llamarModelo(
     await registrar(bd, tarea, modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), r.uso.tokensEntrada, r.uso.tokensSalida, null);
     return r;
   } catch (e) {
-    const detalle = e instanceof ErrorProveedor ? `${e.message}${e.estado ? ` (${e.estado})` : ''}` : (e as Error).message;
+    // El detalle del proveedor (p. ej. qué campo rechazó) se guarda recortado: sin él, un HTTP 400
+    // no se puede diagnosticar. La clave va en cabeceras y nunca aparece en ese texto.
+    const detalle = e instanceof ErrorProveedor ? `${e.message}${e.estado ? ` (${e.estado})` : ''}${e.interno ? `: ${e.interno.replace(/\s+/g, ' ').slice(0, 300)}` : ''}` : (e as Error).message;
     await registrar(bd, tarea, modelo.proveedor, modelo.modelo, ambito, Math.round(performance.now() - inicio), 0, 0, detalle).catch(() => undefined);
     throw e;
   }

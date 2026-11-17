@@ -68,7 +68,12 @@ const esquemaEntorno = esquemaEntornoVoz.extend({
 
 const esquemaTarea = z.object({
   proveedor: proveedor.optional(),
-  modelo: z.string().min(1).optional(),
+  modelo: z
+    .string()
+    .min(1)
+    // Una clave pegada como modelo se guardaría en los registros de uso: se rechaza al arrancar.
+    .refine((m) => !/^(AIza|AQ\.|sk-)/.test(m), 'parece una clave de API, no un nombre de modelo (la clave va en GEMINI_API_KEY o ANTHROPIC_API_KEY)')
+    .optional(),
   timeoutMs: z.coerce.number().int().positive().optional(),
 });
 
@@ -107,7 +112,16 @@ export interface Config {
   };
 }
 
-export function cargarConfig(entorno: NodeJS.ProcessEnv = process.env): Config {
+/**
+ * Una variable vacía en el .env ("BASE_URL_PUBLICA=") vale como no definida: así el .env.example se
+ * copia tal cual y solo se completan las que se usan.
+ */
+function sinVacias(entorno: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(entorno).filter(([, v]) => v !== undefined && v.trim() !== ''));
+}
+
+export function cargarConfig(entornoOriginal: NodeJS.ProcessEnv = process.env): Config {
+  const entorno = sinVacias(entornoOriginal);
   const r = esquemaEntorno.safeParse(entorno);
   if (!r.success) {
     throw new Error(`Configuración inválida:\n${r.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n')}`);
@@ -190,7 +204,8 @@ function configVozDe(e: z.infer<typeof esquemaEntornoVoz>): Config['voz'] {
  * Solo la configuración de voz y los números de emergencia, para las herramientas de benchmark
  * (no necesitan base de datos ni claves de modelos).
  */
-export function cargarConfigVoz(entorno: NodeJS.ProcessEnv = process.env): { voz: Config['voz']; emergencia: ContactosEmergencia } {
+export function cargarConfigVoz(entornoOriginal: NodeJS.ProcessEnv = process.env): { voz: Config['voz']; emergencia: ContactosEmergencia } {
+  const entorno = sinVacias(entornoOriginal);
   const e = esquemaEntornoVoz.parse(entorno);
   const protocolo = esquemaProtocolo.parse(JSON.parse(readFileSync(e.PROTOCOLO_EMERGENCIA, 'utf8')));
   return { voz: configVozDe(e), emergencia: { samu: protocolo.numeros.samu.numero, prevencionSuicidio: protocolo.numeros.prevencionSuicidio.numero } };
