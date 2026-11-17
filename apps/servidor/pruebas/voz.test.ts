@@ -141,7 +141,9 @@ describe('prototipo de la tablet', () => {
     const r = await e.f.inject({ method: 'GET', url: '/tablet' });
     expect(r.statusCode).toBe(200);
     expect(r.headers['content-security-policy']).toContain("frame-ancestors 'none'");
-    expect(r.body).toContain('Toque para hablar');
+    expect(r.body).toContain('Conversemos');
+    // La conversación manos libres pide consentimiento explícito antes de dejar el micrófono abierto.
+    expect(r.body).toContain('el micrófono queda abierto mientras la conversación esté activa');
     // Los números de emergencia no están escritos en la página: llegan del servidor.
     expect(r.body).not.toMatch(/\b131\b|\*4141/);
   });

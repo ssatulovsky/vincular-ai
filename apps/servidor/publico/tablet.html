@@ -44,36 +44,56 @@
 
   .cabecera { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
   .cabecera h1 { margin: 0; font-size: 34px; font-weight: 700; display: flex; align-items: center; gap: 16px; }
-  .cabecera h1 img { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; border: 4px solid var(--blanco); }
   .cabecera a.disenar { font-size: 22px; font-weight: 700; color: var(--botella); }
   .estado { color: var(--tinta-suave); font-size: 24px; }
 
-  /* El botón es el compañero: un dial redondo cuyo anillo crece con la voz de la persona. */
-  .centro { display: grid; place-items: center; min-height: calc(var(--radio-boton) + 40px); }
+  /*
+   * El compañero ocupa el centro: su retrato (o su inicial) respira en reposo, se ilumina con su
+   * propia voz cuando habla y muestra un anillo amarillo, que crece con la voz de la persona,
+   * mientras escucha. Tocarlo mientras habla lo interrumpe.
+   */
+  .centro { display: grid; place-items: center; gap: 18px; padding-top: 6px; }
   .dial {
     position: relative; width: var(--radio-boton); height: var(--radio-boton);
-    border-radius: 50%; border: 0; cursor: pointer;
-    background: var(--botella); color: var(--blanco);
-    font: inherit; font-size: 34px; font-weight: 700;
-    display: grid; place-items: center; text-align: center; padding: 18%;
-    box-shadow: 0 0 0 calc(10px + var(--nivel, 0) * 48px) var(--botella-claro);
-    transition: box-shadow 90ms linear, background-color 200ms ease;
+    border-radius: 50%; border: 0; cursor: pointer; padding: 0; overflow: visible;
+    background: var(--botella) center / cover no-repeat; color: var(--blanco);
+    font: inherit; font-size: calc(var(--radio-boton) * 0.42); font-weight: 700;
+    display: grid; place-items: center;
+    box-shadow: 0 0 0 calc(8px + var(--nivel, 0) * 44px) var(--anillo, var(--botella-claro));
+    transform: scale(calc(1 + var(--habla, 0) * 0.025));
+    filter: brightness(calc(1 + var(--habla, 0) * 0.08));
+    transition: box-shadow 90ms linear, transform 90ms linear, filter 90ms linear;
   }
+  .dial.con-retrato { color: transparent; }
+  .dial[data-estado="libre"], .dial[data-estado="pausa"] { animation: respirar 5s ease-in-out infinite; }
+  .dial[data-estado="escuchando"] { --anillo: var(--mostaza); }
+  .dial[data-estado="hablando"] { --anillo: var(--botella-claro); }
+  .dial[data-estado="desconectado"] { filter: grayscale(1) opacity(.6); cursor: default; }
   .dial:focus-visible { outline: 6px solid var(--mostaza); outline-offset: 10px; }
-  .dial[data-estado="escuchando"] { background: var(--mostaza); color: var(--tinta); }
-  .dial[data-estado="pensando"] { background: var(--tinta-suave); }
-  .dial[data-estado="hablando"] { background: var(--botella); }
-  .dial[data-estado="desconectado"] { background: #7C8B85; cursor: default; }
   .dial[data-estado="pensando"]::after {
-    content: ""; position: absolute; inset: -14px; border-radius: 50%;
+    content: ""; position: absolute; inset: -16px; border-radius: 50%;
     border: 6px solid transparent; border-top-color: var(--botella);
     animation: girar 1.4s linear infinite;
   }
   @keyframes girar { to { transform: rotate(1turn); } }
+  @keyframes respirar { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
   @media (prefers-reduced-motion: reduce) {
-    .dial { transition: none; }
+    .dial { transition: none; animation: none !important; transform: none; }
     .dial[data-estado="pensando"]::after { animation: none; border-color: var(--botella); }
   }
+  .etiqueta { font-size: 30px; font-weight: 700; color: var(--tinta); min-height: 1.4em; text-align: center; }
+  .etiqueta[data-estado="escuchando"] { color: var(--tinta); background: var(--mostaza); padding: 4px 22px; border-radius: 30px; }
+  .conversar {
+    font: inherit; font-size: 30px; font-weight: 700; min-height: 84px; padding: 0 44px; border-radius: 42px;
+    border: 0; background: var(--botella); color: var(--blanco); cursor: pointer;
+  }
+  .conversar[aria-pressed="true"] { background: var(--blanco); color: var(--botella); border: 4px solid var(--botella); }
+  .conversar:focus-visible { outline: 5px solid var(--mostaza); outline-offset: 4px; }
+  .aviso-microfono { background: var(--blanco); border: 4px solid var(--mostaza); border-radius: 22px; padding: 20px 24px; display: grid; gap: 14px; }
+  .aviso-microfono p { margin: 0; font-size: 26px; }
+  .aviso-microfono .botones { display: flex; gap: 14px; flex-wrap: wrap; }
+  .aviso-microfono button { font: inherit; font-size: 26px; font-weight: 700; min-height: 72px; padding: 0 28px; border-radius: 18px; border: 3px solid var(--botella); background: var(--blanco); color: var(--botella); cursor: pointer; }
+  .aviso-microfono button.si { background: var(--botella); color: var(--blanco); border: 0; }
 
   .subtitulos { background: var(--blanco); border-radius: 22px; padding: 22px 26px; min-height: 150px; display: grid; gap: 10px; align-content: start; user-select: text; }
   .dijo { color: var(--tinta-suave); font-size: 22px; }
@@ -123,19 +143,25 @@
     </div>
   </section>
   <header class="cabecera">
-    <h1><img id="retrato" class="oculto" alt=""><span id="nombre">Mi compañero</span></h1>
+    <h1><span id="nombre">Mi compañero</span></h1>
     <div style="display:grid;justify-items:end;gap:4px">
       <div class="estado" id="estado" aria-live="polite">Conectando…</div>
       <a class="disenar" href="/companero">Mi compañero</a>
     </div>
   </header>
+  <section class="aviso-microfono oculto" id="aviso-microfono" aria-labelledby="aviso-microfono-texto">
+    <p id="aviso-microfono-texto">Para conversar sin tocar la pantalla, el micrófono queda abierto mientras la conversación esté activa. Lo sabrá porque verá un anillo amarillo y la palabra «Le escucho». No se graba su voz: solo se convierte en texto para responderle. Puede pausar cuando quiera.</p>
+    <div class="botones"><button class="si" id="aceptar-microfono">Entendido, conversemos</button><button id="rechazar-microfono">Ahora no</button></div>
+  </section>
   <div class="centro">
-    <button class="dial" id="dial" data-estado="desconectado" aria-describedby="estado">Toque para hablar</button>
+    <button class="dial" id="dial" data-estado="desconectado" aria-describedby="estado" aria-label="Su compañero"><span id="inicial" aria-hidden="true"></span></button>
+    <div class="etiqueta" id="etiqueta" data-estado="desconectado" aria-hidden="true"></div>
+    <button class="conversar" id="conversar" aria-pressed="false">Conversemos</button>
   </div>
   <div>
     <section class="subtitulos" aria-live="polite">
       <div class="dijo" id="dijo"></div>
-      <div class="responde" id="responde">Toque el círculo y hable con calma. Cuando termine, espere un momento.</div>
+      <div class="responde" id="responde">Toque «Conversemos» y hable con calma, como con alguien que está a su lado.</div>
     </section>
     <div class="acciones" style="margin-top:16px">
       <button id="repetir" disabled>Repetir</button>
@@ -155,6 +181,11 @@
   const SILENCIO_MS = 1600;      // pausa que da por terminado el turno (personas mayores: pausas largas)
   const MAX_GRABACION_MS = 60000;
   const UMBRAL_VOZ = 0.035;      // nivel RMS que cuenta como voz
+  // Conversación manos libres
+  const ESPERA_SIN_VOZ_MS = 45000;   // si nadie habla en este tiempo, la conversación se pausa sola
+  const UMBRAL_INTERRUPCION = 0.08;  // más alto que UMBRAL_VOZ: que el eco del parlante no lo interrumpa
+  const INTERRUPCION_MS = 350;       // voz sostenida que cuenta como "quiero hablar"
+  const ACEPTO_MANOS_LIBRES = 'vincular.manosLibresAceptado';
 
   const leerToken = () => { try { return localStorage.getItem(CLAVE); } catch { return null; } };
   const guardarToken = (t) => { try { localStorage.setItem(CLAVE, t); } catch {} };
@@ -162,14 +193,79 @@
   let ws = null, intentos = 0, estado = 'desconectado';
   let grabadora = null, flujo = null, contextoAudio = null, analizador = null, cuadro = 0;
   let cola = [], indice = 0, turnoTerminado = true, ultimaRespuesta = [], reproductor = null, reproduciendo = false;
+  let mensajePausa = null, conversando = false, descartarGrabacion = false, cuadroInterrupcion = 0, temporizadorEscucha = 0;
 
   function fijarEstado(e, texto) {
     estado = e;
     $('dial').dataset.estado = e;
-    $('dial').textContent = { libre: 'Toque para hablar', escuchando: 'Le escucho', pensando: 'Pensando', hablando: 'Toque para callarme', desconectado: 'Sin conexión' }[e];
-    $('estado').textContent = texto ?? { libre: 'Listo', escuchando: 'Escuchando…', pensando: 'Pensando…', hablando: 'Hablando', desconectado: 'Reconectando…' }[e];
+    $('etiqueta').dataset.estado = e;
+    $('etiqueta').textContent = { libre: conversando ? '' : 'Toque «Conversemos» para hablar', escuchando: 'Le escucho', pensando: 'Pensando…', hablando: 'Toque su cara para interrumpir', desconectado: 'Sin conexión' }[e];
+    $('dial').setAttribute('aria-label', { libre: 'Hablar una vez', escuchando: 'Terminar de hablar', pensando: 'Pensando', hablando: 'Interrumpir', desconectado: 'Sin conexión' }[e]);
+    $('estado').textContent = texto ?? { libre: conversando ? 'Conversando' : 'Listo', escuchando: 'Escuchando…', pensando: 'Pensando…', hablando: 'Hablando', desconectado: 'Reconectando…' }[e];
     $('repetir').disabled = e !== 'libre' || ultimaRespuesta.length === 0;
+    if (e !== 'hablando') detenerMonitorInterrupcion();
+    if (e === 'libre') programarEscucha();
   }
+
+  // ── Conversación manos libres ───────────────────────────────────────────
+  // Un toque en «Conversemos» y la tablet escucha, responde y vuelve a escuchar sola. La persona
+  // puede interrumpir hablando o tocando la cara. Se pausa sola tras un rato sin voz, al ocultarse
+  // la pantalla o con un recordatorio de medicación; al pausar se libera el micrófono.
+  function programarEscucha() {
+    clearTimeout(temporizadorEscucha);
+    if (!conversando || recordatorioActual || !ws || ws.readyState !== 1) return;
+    temporizadorEscucha = setTimeout(() => { if (conversando && estado === 'libre' && !recordatorioActual) empezarGrabacion(); }, 400);
+  }
+
+  function iniciarConversacion() {
+    conversando = true;
+    $('conversar').setAttribute('aria-pressed', 'true');
+    $('conversar').textContent = 'Pausar';
+    $('aviso-microfono').classList.add('oculto');
+    try { (contextoAudio ??= new AudioContext()).resume(); } catch {}
+    if (estado === 'libre') fijarEstado('libre');
+  }
+
+  function pausarConversacion(mensaje) {
+    conversando = false;
+    clearTimeout(temporizadorEscucha);
+    $('conversar').setAttribute('aria-pressed', 'false');
+    $('conversar').textContent = 'Conversemos';
+    if (estado === 'escuchando') { mensajePausa = mensaje; descartarGrabacion = true; terminarGrabacion(); }
+    if (estado === 'hablando') callar();
+    liberarMicrofono();
+    if (estado === 'libre') fijarEstado('libre', mensaje);
+    else if (mensaje) $('estado').textContent = mensaje;
+  }
+
+  function liberarMicrofono() {
+    detenerMonitorInterrupcion();
+    if (grabadora && grabadora.state === 'recording') return; // se libera al terminar esa grabación
+    if (flujo) { flujo.getTracks().forEach((t) => t.stop()); flujo = null; }
+  }
+
+  // Mientras el compañero habla, si la persona habla fuerte y sostenido, se calla y la escucha.
+  function vigilarInterrupcion() {
+    if (!conversando || !flujo) return;
+    contextoAudio ??= new AudioContext();
+    const a = contextoAudio.createAnalyser();
+    a.fftSize = 1024;
+    const fuente = contextoAudio.createMediaStreamSource(flujo);
+    fuente.connect(a);
+    const datos = new Float32Array(a.fftSize);
+    let desde = 0;
+    const paso = () => {
+      if (estado !== 'hablando') { fuente.disconnect(); return; }
+      a.getFloatTimeDomainData(datos);
+      const rms = Math.sqrt(datos.reduce((t, x) => t + x * x, 0) / datos.length);
+      const ahora = performance.now();
+      if (rms > UMBRAL_INTERRUPCION) { desde ||= ahora; if (ahora - desde > INTERRUPCION_MS) { fuente.disconnect(); callar(); return; } }
+      else desde = 0;
+      cuadroInterrupcion = requestAnimationFrame(paso);
+    };
+    cuadroInterrupcion = requestAnimationFrame(paso);
+  }
+  function detenerMonitorInterrupcion() { cancelAnimationFrame(cuadroInterrupcion); }
 
   // ── Nombre y retrato del compañero ──────────────────────────────────────
   async function cargarCompanero() {
@@ -181,9 +277,14 @@
       if (!perfil) return;
       $('nombre').textContent = perfil.nombre;
       document.title = perfil.nombre;
+      $('inicial').textContent = perfil.nombre.charAt(0).toUpperCase();
       if (perfil.avatar_id) {
         const img = await fetch(`/api/mi-companero/avatares/${encodeURIComponent(perfil.avatar_id)}/imagen`, { headers: { authorization: `Bearer ${token}` } });
-        if (img.ok) { $('retrato').src = URL.createObjectURL(await img.blob()); $('retrato').classList.remove('oculto'); }
+        if (img.ok) {
+          const url = URL.createObjectURL(await img.blob());
+          $('dial').style.backgroundImage = `url("${url}")`;
+          $('dial').classList.add('con-retrato');
+        }
       }
     } catch {}
   }
@@ -259,6 +360,8 @@
   const guardarCola = (c) => { try { localStorage.setItem(COLA, JSON.stringify(c)); } catch {} };
 
   function mostrarRecordatorio(r) {
+    if (estado === 'escuchando') { descartarGrabacion = true; terminarGrabacion(); }
+    if (estado === 'hablando') callar();
     recordatorioActual = r;
     r.eventoIds.forEach((id) => recibidosDelServidor.add(id));
     $('recordatorio-texto').textContent = r.texto;
@@ -285,6 +388,7 @@
     if (!r) return;
     $('recordatorio').classList.add('oculto');
     recordatorioActual = null;
+    programarEscucha();
     const cuerpo = { eventoIds: r.eventoIds, tomadaEn: new Date().toISOString() };
     try {
       await enviarConfirmacion(cuerpo, false);
@@ -355,21 +459,48 @@
   function reproducirSiguiente() {
     if (indice >= cola.length) {
       reproduciendo = false;
+      $('dial').style.setProperty('--habla', 0);
       if (turnoTerminado) fijarEstado('libre');
       return;
     }
+    const primera = !reproduciendo;
     reproduciendo = true;
-    fijarEstado('hablando');
+    if (estado !== 'hablando') fijarEstado('hablando');
+    if (primera) vigilarInterrupcion();
     reproductor = new Audio(cola[indice++]);
+    animarConVoz(reproductor);
     reproductor.onended = reproducirSiguiente;
     reproductor.onerror = reproducirSiguiente;
     reproductor.play().catch(() => { reproduciendo = false; fijarEstado('libre', 'Toque Repetir para escuchar'); });
+  }
+
+  // La cara se ilumina y crece apenas al ritmo de su propia voz.
+  function animarConVoz(audio) {
+    try {
+      // Con el contexto de audio suspendido, desviar el audio por él lo dejaría mudo: sin animación, pero con voz.
+      if (!contextoAudio || contextoAudio.state !== 'running') return;
+      const fuente = contextoAudio.createMediaElementSource(audio);
+      const a = contextoAudio.createAnalyser();
+      a.fftSize = 512;
+      fuente.connect(a);
+      a.connect(contextoAudio.destination);
+      const datos = new Float32Array(a.fftSize);
+      const paso = () => {
+        if (audio.paused || audio.ended) { $('dial').style.setProperty('--habla', 0); return; }
+        a.getFloatTimeDomainData(datos);
+        const rms = Math.sqrt(datos.reduce((t, x) => t + x * x, 0) / datos.length);
+        $('dial').style.setProperty('--habla', Math.min(1, rms * 6).toFixed(3));
+        requestAnimationFrame(paso);
+      };
+      audio.addEventListener('play', () => requestAnimationFrame(paso), { once: true });
+    } catch {}
   }
 
   function callar() {
     if (reproductor) { reproductor.onended = null; reproductor.onerror = null; reproductor.pause(); }
     indice = cola.length;
     reproduciendo = false;
+    $('dial').style.setProperty('--habla', 0);
     fijarEstado('libre');
   }
 
@@ -387,6 +518,14 @@
     grabadora.onstop = async () => {
       cancelAnimationFrame(cuadro);
       $('dial').style.setProperty('--nivel', 0);
+      if (descartarGrabacion) {
+        descartarGrabacion = false;
+        if (!conversando) liberarMicrofono();
+        // Si mientras tanto se envió un texto, el estado ya es «pensando»: no se pisa.
+        if (estado === 'escuchando') fijarEstado('libre', mensajePausa ?? undefined);
+        mensajePausa = null;
+        return;
+      }
       const blob = new Blob(trozos, { type: grabadora.mimeType || tipo || 'audio/webm' });
       if (blob.size < 2000) return fijarEstado('libre', 'No alcancé a escuchar nada');
       fijarEstado('pensando');
@@ -413,6 +552,12 @@
       $('dial').style.setProperty('--nivel', Math.min(1, rms * 8).toFixed(3));
       const ahora = performance.now();
       if (rms > UMBRAL_VOZ) { hablo = true; ultimaVoz = ahora; }
+      if (!hablo && ahora - inicio > (conversando ? ESPERA_SIN_VOZ_MS : 8000)) {
+        descartarGrabacion = true;
+        terminarGrabacion();
+        if (conversando) pausarConversacion('Me quedo atento. Toque «Conversemos» cuando quiera seguir.');
+        return;
+      }
       if ((hablo && ahora - ultimaVoz > SILENCIO_MS) || ahora - inicio > MAX_GRABACION_MS) return terminarGrabacion();
       cuadro = requestAnimationFrame(paso);
     };
@@ -429,6 +574,20 @@
     else if (estado === 'escuchando') terminarGrabacion();
     else if (estado === 'hablando') callar();
   });
+  $('conversar').addEventListener('click', () => {
+    if (conversando) return pausarConversacion('Conversación en pausa');
+    let acepto = false;
+    try { acepto = localStorage.getItem(ACEPTO_MANOS_LIBRES) === 'si'; } catch {}
+    if (acepto) return iniciarConversacion();
+    $('aviso-microfono').classList.remove('oculto');
+    $('aceptar-microfono').focus();
+  });
+  $('aceptar-microfono').addEventListener('click', () => {
+    try { localStorage.setItem(ACEPTO_MANOS_LIBRES, 'si'); } catch {}
+    iniciarConversacion();
+  });
+  $('rechazar-microfono').addEventListener('click', () => $('aviso-microfono').classList.add('oculto'));
+  document.addEventListener('visibilitychange', () => { if (document.hidden && conversando) pausarConversacion('Conversación en pausa'); });
   $('ya-tome').addEventListener('click', confirmarToma);
   $('recordatorio-oir').addEventListener('click', hablarRecordatorio);
   $('repetir').addEventListener('click', () => {
@@ -440,7 +599,9 @@
   $('escribir').addEventListener('submit', (e) => {
     e.preventDefault();
     const texto = $('texto').value.trim();
-    if (!texto || estado !== 'libre') return;
+    if (!texto) return;
+    if (estado === 'escuchando') { descartarGrabacion = true; terminarGrabacion(); }
+    else if (estado !== 'libre') return;
     $('texto').value = '';
     $('dijo').textContent = `Usted escribió: «${texto}»`;
     fijarEstado('pensando');

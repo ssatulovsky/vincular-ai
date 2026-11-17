@@ -88,7 +88,15 @@
   <!-- Ingreso del equipo (solo si no hay código de tablet en este dispositivo) -->
   <section id="ingreso" class="oculto" aria-labelledby="t-ingreso">
     <h1 id="t-ingreso">Diseñar el compañero</h1>
-    <p class="ayuda">Ingrese con su cuenta del equipo. Si está en la tablet de la persona, abra esta página desde la tablet.</p>
+    <p class="subtitulo" style="margin-top:0">¿Es la tablet de la persona?</p>
+    <p class="ayuda">Pegue el código de la tablet que entregó el equipo.</p>
+    <form id="form-codigo" style="display:grid;gap:16px;max-width:560px">
+      <input type="password" id="codigo-tablet" autocomplete="off" placeholder="Código de la tablet" aria-label="Código de la tablet">
+      <button class="principal" type="submit">Usar este código</button>
+    </form>
+    <p class="error" id="error-codigo" role="alert"></p>
+    <p class="subtitulo">¿Es del equipo?</p>
+    <p class="ayuda">Ingrese con su cuenta del equipo.</p>
     <form id="form-ingreso" style="display:grid;gap:16px;max-width:560px">
       <input type="email" id="email" autocomplete="username" placeholder="Correo" aria-label="Correo" required>
       <input type="password" id="contrasena" autocomplete="current-password" placeholder="Contraseña" aria-label="Contraseña" required>
@@ -525,6 +533,18 @@
       if (r.personas.length === 0) $('error-personas').textContent = 'Todavía no tiene personas asignadas.';
     } catch (e) { $('error-personas').textContent = e.message; }
   }
+  $('form-codigo').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    $('error-codigo').textContent = '';
+    const codigo = $('codigo-tablet').value.trim();
+    if (codigo.length < 20) return ($('error-codigo').textContent = 'Ese código es demasiado corto.');
+    const r = await fetch('/api/yo', { headers: { authorization: `Bearer ${codigo}` } }).catch(() => null);
+    const yo = r && r.ok ? await r.json() : null;
+    if (!yo || yo.tipo !== 'dispositivo') return ($('error-codigo').textContent = 'Ese código no es válido. Pida uno nuevo al equipo.');
+    escribir('vincular.tokenDispositivo', codigo);
+    location.reload();
+  });
+
   $('form-ingreso').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     $('error-ingreso').textContent = '';
