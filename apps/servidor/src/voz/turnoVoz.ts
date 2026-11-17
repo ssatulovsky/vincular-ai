@@ -1,5 +1,6 @@
 import { detectarRiesgoPorReglas, type ContactosEmergencia } from '@vincular/seguridad-clinica';
 import { dividirEnFrases, prepararParaVoz, vozDelCatalogo, type CatalogoVoces, type ResultadoReconocimiento, type ServiciosVoz, type VozConfigurada } from '@vincular/voz';
+import { ErrorVoz } from '@vincular/voz';
 import type { Bd } from '../db/conexion.ts';
 import type { Orquestador } from '../conversacion/orquestador.ts';
 import { leerPerfil, PERFIL_POR_DEFECTO, type PerfilCompanero } from '../conversacion/perfil.ts';
@@ -58,8 +59,9 @@ export async function procesarTurnoVoz(
     reconocedor = { proveedor: r.proveedor, modelo: r.modelo };
     reconocido = await r.reconocer({ audio: e.audio, mime: e.mime, idioma });
     Object.assign(medicion, { stt_ok: true, stt_ms: reconocido.latenciaMs, stt_confianza: reconocido.confianza, stt_segundos_audio: reconocido.segundosAudio });
-  } catch {
+  } catch (err) {
     reconocido = null;
+    avisarFallaVoz('stt', err);
   }
 
   try {
@@ -116,7 +118,8 @@ async function hablar(
       if (i === 0) Object.assign(medicion, { tts_primer_audio_ms: s.latenciaMs, total_primer_audio_ms: desde() });
       emitir({ tipo: 'audio_respuesta', indice: i, total: frases.length, mime: s.mime, datos: s.audio.toString('base64') });
     }
-  } catch {
+  } catch (err) {
+    avisarFallaVoz('tts', err);
     medicion.tts_ok = false;
     emitir({ tipo: 'sin_audio', texto });
   }
@@ -156,5 +159,24 @@ async function registrar(
       m.tts_ok ?? null,
       m.total_primer_audio_ms ?? null,
     ],
+  );
+}
+
+/**
+ * Deja la causa de una falla de voz en el registro del servidor (journalctl). Sin esto, una clave
+ * inválida o un modelo inexistente solo se ven como "no le escuché bien". Nunca incluye la clave
+ * ni el audio; el detalle del proveedor va recortado.
+ */
+function avisarFallaVoz(etapa: 'stt' | 'tts', err: unknown): void {
+  const e = err instanceof ErrorVoz ? err : null;
+  console.warn(
+    JSON.stringify({
+      level: 40,
+      msg: `voz.${etapa}.falla`,
+      proveedor: e?.proveedor ?? null,
+      estado: e?.estado ?? null,
+      error: (err as Error)?.message ?? String(err),
+      detalle: e?.interno ? e.interno.replace(/\s+/g, ' ').slice(0, 300) : null,
+    }),
   );
 }

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { crearEscenario, pedir, type Escenario } from './escenario.ts';
 
@@ -43,6 +43,23 @@ describe('turno por voz', () => {
     const c = await conectar(e.tokens.dispositivo);
     expect(c.sesion.emergencia).toEqual({ samu: '131', prevencionSuicidio: '*4141' });
     c.ws.close();
+  });
+
+  it('deja en el registro del servidor por qué falló la voz, sin claves', async () => {
+    const avisos: string[] = [];
+    const espia = vi.spyOn(console, 'warn').mockImplementation((m: unknown) => void avisos.push(String(m)));
+    try {
+      const c = await conectar(e.tokens.dispositivo);
+      c.ws.send(JSON.stringify({ tipo: 'audio', mime: 'audio/webm;codecs=opus', datos: Buffer.alloc(5000, 1).toString('base64') }));
+      await c.recibir('fin_turno');
+      c.ws.close();
+    } finally {
+      espia.mockRestore();
+    }
+    const fallas = avisos.map((a) => JSON.parse(a) as { msg: string; error: string });
+    expect(fallas.map((f) => f.msg)).toEqual(['voz.stt.falla', 'voz.tts.falla']);
+    expect(fallas.every((f) => f.error.length > 0)).toBe(true);
+    for (const a of avisos) expect(a).not.toMatch(/clave-de-prueba|xi-api-key/i);
   });
 
   it('si el reconocimiento no está disponible, pide repetir; si tampoco hay síntesis, deja el texto en pantalla', async () => {
