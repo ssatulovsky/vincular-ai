@@ -96,6 +96,15 @@ describe('configuración', () => {
     expect(() => cargarConfig({ ...base, IA_MODELO_GUARDIAN: 'AIzaSyEjemploNoReal' })).toThrow(/clave de API/);
     expect(() => cargarConfig({ ...base, IA_MODELO_RIESGO: 'sk-ant-ejemplo' })).toThrow(/clave de API/);
   });
+  it('rechaza un idioma de voz escrito como palabra y acepta códigos', () => {
+    expect(() => cargarConfig({ ...base, VOZ_STT_IDIOMA: 'spanish' })).toThrow(/VOZ_STT_IDIOMA/);
+    expect(cargarConfig({ ...base, VOZ_STT_PROVEEDOR: 'elevenlabs', VOZ_STT_IDIOMA: 'es' }).voz.servicios.reconocimiento.idioma).toBe('es');
+    expect(cargarConfig({ ...base, VOZ_STT_IDIOMA: 'es-US' }).voz.servicios.reconocimiento.idioma).toBe('es-US');
+  });
+  it('rechaza una cuenta de servicio de Google que no existe o con ruta relativa', () => {
+    expect(() => cargarConfig({ ...base, VOZ_GOOGLE_CUENTA_SERVICIO: 'google-voz-key.json' })).toThrow(/VOZ_GOOGLE_CUENTA_SERVICIO/);
+    expect(() => cargarConfig({ ...base, VOZ_GOOGLE_CUENTA_SERVICIO: '/no/existe/google.json' })).toThrow(/VOZ_GOOGLE_CUENTA_SERVICIO/);
+  });
   it('rechaza una clave de cifrado inválida', () => {
     expect(() => cargarConfig({ ...base, CLAVE_CIFRADO: 'corta' })).toThrow(/CLAVE_CIFRADO/);
   });

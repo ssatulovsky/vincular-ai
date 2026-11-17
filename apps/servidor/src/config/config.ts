@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -17,10 +17,17 @@ const esquemaEntornoVoz = z.object({
   VOZ_CATALOGO: z.string().default(path.join(RAIZ, 'config/voz/voces.json')),
   VOZ_STT_PROVEEDOR: z.enum(['google', 'elevenlabs']).default('google'),
   // Google Chirp 3 no tiene es-CL: es-US por defecto. ElevenLabs usa "es".
-  VOZ_STT_IDIOMA: z.string().optional(),
+  VOZ_STT_IDIOMA: z
+    .string()
+    .regex(/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/, 'debe ser un código de idioma como es o es-US, no una palabra como "spanish" (o déjela vacía)')
+    .optional(),
   // Bajo esta confianza (si el proveedor la informa) se pide repetir, salvo que haya señal de riesgo.
   VOZ_UMBRAL_CONFIANZA: z.coerce.number().min(0).max(1).default(0.5),
-  VOZ_GOOGLE_CUENTA_SERVICIO: z.string().optional(),
+  // Se revisa al arrancar: si no, la falla aparece recién en la primera conversación con voz.
+  VOZ_GOOGLE_CUENTA_SERVICIO: z
+    .string()
+    .refine((ruta) => path.isAbsolute(ruta) && existsSync(ruta), 'debe ser la ruta absoluta de un archivo que exista (p. ej. /opt/vincular-ai/google-voz.json), o quedar vacía si no usa Google')
+    .optional(),
   VOZ_GOOGLE_CLAVE_API: z.string().optional(),
   VOZ_GOOGLE_PROYECTO: z.string().optional(),
   VOZ_GOOGLE_MODELO_GEMINI: z.string().optional(),
