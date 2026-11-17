@@ -91,6 +91,11 @@ describe('configuración', () => {
   it('sigue rechazando una URL pública mal escrita', () => {
     expect(() => cargarConfig({ ...base, BASE_URL_PUBLICA: 'vincular.cl' })).toThrow(/BASE_URL_PUBLICA/);
   });
+  it('rechaza una clave de API pegada en lugar del nombre del modelo', () => {
+    expect(() => cargarConfig({ ...base, IA_MODELO_CONVERSACION: 'AQ.Ab8RNejemploNoEsUnaClaveReal' })).toThrow(/clave de API/);
+    expect(() => cargarConfig({ ...base, IA_MODELO_GUARDIAN: 'AIzaSyEjemploNoReal' })).toThrow(/clave de API/);
+    expect(() => cargarConfig({ ...base, IA_MODELO_RIESGO: 'sk-ant-ejemplo' })).toThrow(/clave de API/);
+  });
   it('rechaza una clave de cifrado inválida', () => {
     expect(() => cargarConfig({ ...base, CLAVE_CIFRADO: 'corta' })).toThrow(/CLAVE_CIFRADO/);
   });
