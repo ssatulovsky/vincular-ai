@@ -124,6 +124,8 @@ export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
   });
 
   f.setErrorHandler((error, req, reply) => {
+    // Un error nunca se guarda en la caché del navegador, aunque la ruta ya hubiera fijado una.
+    reply.header('cache-control', 'no-store');
     if (error instanceof ZodError) {
       return reply.code(400).send({ error: 'Datos inválidos', detalle: error.issues.map((i) => ({ campo: i.path.join('.'), mensaje: i.message })) });
     }

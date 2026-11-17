@@ -108,7 +108,10 @@ describe('voces del onboarding', () => {
   it('la muestra solo se pide desde la tablet y responde 503 si la voz no está disponible', async () => {
     expect((await pedir(e.f, 'GET', '/api/voces/el-silvana/muestra', e.tokens.supervisor)).estado).toBe(403);
     expect((await pedir(e.f, 'GET', '/api/voces/no-ofrecida/muestra', e.tokens.dispositivo)).estado).toBe(400);
-    expect((await pedir(e.f, 'GET', '/api/voces/el-silvana/muestra', e.tokens.dispositivo)).estado).toBe(503);
+    const fallida = await e.f.inject({ method: 'GET', url: '/api/voces/el-silvana/muestra', headers: { authorization: `Bearer ${e.tokens.dispositivo}` } });
+    expect(fallida.statusCode).toBe(503);
+    // Si se guardara en caché, el navegador seguiría mostrando el error aunque la voz ya funcione.
+    expect(fallida.headers['cache-control']).toBe('no-store');
   });
 
   it('la persona elige voz y velocidad dentro de lo permitido', async () => {
