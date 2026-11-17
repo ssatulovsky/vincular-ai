@@ -11,7 +11,7 @@
  * no se usa generación anticipada: el guardián revisa la respuesta completa antes de hablar.
  */
 import type { ReadableStream } from 'node:stream/web';
-import { AutoSubscribe, defineAgent, voice, type JobContext, type JobProcess, type llm } from '@livekit/agents';
+import { AutoSubscribe, defineAgent, llm, voice, type JobContext, type JobProcess } from '@livekit/agents';
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs';
 import * as silero from '@livekit/agents-plugin-silero';
 import { RoomEvent, type RemoteParticipant } from '@livekit/rtc-node';
@@ -23,6 +23,26 @@ import { procesarSesion } from '../memoria/extraccion.ts';
 import { flujoDeTexto, personaDelParticipante, ultimoMensajeDeLaPersona, vozParaTiempoReal } from './utilidades.ts';
 
 const TEMA = 'vincular';
+
+/**
+ * LiveKit solo genera respuesta al terminar el turno si la sesión tiene un "LLM". El nuestro es el
+ * orquestador (ver Companero.llmNode), así que este marcador existe solo para habilitar ese paso:
+ * nunca se llama, y si alguien lo llamara, falla en vez de responder sin guardián.
+ */
+class MarcadorOrquestador extends llm.LLM {
+  label(): string {
+    return 'vincular.orquestador';
+  }
+  override get model(): string {
+    return 'orquestador';
+  }
+  override get provider(): string {
+    return 'vincular';
+  }
+  chat(): llm.LLMStream {
+    throw new Error('El paso de lenguaje del agente es el orquestador (llmNode); este marcador no responde.');
+  }
+}
 const codificar = (m: unknown) => new TextEncoder().encode(JSON.stringify(m));
 
 function registro(msg: string, extra: Record<string, unknown> = {}): void {
@@ -80,6 +100,7 @@ export default defineAgent({
 
     const sesion = new voice.AgentSession({
       vad: ctx.proc.userData.vad as silero.VAD,
+      llm: new MarcadorOrquestador(),
       stt: new elevenlabs.STT({ apiKey: claveEleven, model: tr.modeloStt, languageCode: app.config.voz.servicios.reconocimiento.proveedor === 'elevenlabs' ? app.config.voz.servicios.reconocimiento.idioma : 'es' }),
       // Con eleven_v4_* el plugin usa la API de diálogo, que ignora la velocidad: queda la natural de la voz.
       tts: new elevenlabs.TTS({ apiKey: claveEleven, voiceId: voz.voz, model: voz.motor, language: 'es', voiceSettings: { stability: 0.5, similarity_boost: 0.75, speed: perfil.velocidad_voz } }),
