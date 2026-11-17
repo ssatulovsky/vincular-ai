@@ -97,6 +97,7 @@ const esquemaTarea = z.object({
     .refine((m) => !/^(AIza|AQ\.|sk-)/.test(m), 'parece una clave de API, no un nombre de modelo (la clave va en GEMINI_API_KEY o ANTHROPIC_API_KEY)')
     .optional(),
   timeoutMs: z.coerce.number().int().positive().optional(),
+  razonamiento: z.enum(['low', 'medium', 'high', 'predeterminado'], { message: 'debe ser low, medium, high o predeterminado' }).optional(),
 });
 
 const esquemaProtocolo = z.object({
@@ -107,6 +108,13 @@ const esquemaProtocolo = z.object({
   }),
 });
 
+/**
+ * Razonamiento por defecto. La conversación va en low: responde en voz y cada segundo se nota; con
+ * el valor por defecto de Gemini (medium) tardaba 4–7 s y a veces gastaba el tope pensando. El
+ * riesgo y el guardián quedan con el del modelo (criterio conservador). IA_RAZONAMIENTO_<TAREA>
+ * lo cambia; "predeterminado" no envía nada.
+ */
+const RAZONAMIENTO_POR_DEFECTO: Partial<Record<Tarea, 'low' | 'medium' | 'high'>> = { conversacion: 'low' };
 const TIMEOUT_POR_DEFECTO: Record<Tarea, number> = { conversacion: 30_000, guardian: 10_000, riesgo: 10_000, extraccion: 30_000, informes: 120_000, embeddings: 15_000, imagenes: 90_000 };
 
 export interface Config {
@@ -170,10 +178,17 @@ export function cargarConfig(entornoOriginal: NodeJS.ProcessEnv = process.env): 
       proveedor: entorno[`IA_PROVEEDOR_${T}`] || undefined,
       modelo: entorno[`IA_MODELO_${T}`] || undefined,
       timeoutMs: entorno[`IA_TIMEOUT_MS_${T}`] || undefined,
+      razonamiento: entorno[`IA_RAZONAMIENTO_${T}`] || undefined,
     });
     if (!v.success) throw new Error(`Configuración inválida para la tarea ${t}: ${v.error.issues.map((i) => i.message).join('; ')}`);
     if (!v.data.modelo) tareasSinModelo.push(t);
-    tareas[t] = { proveedor: v.data.proveedor ?? e.IA_PROVEEDOR, modelo: v.data.modelo ?? '', timeoutMs: v.data.timeoutMs ?? TIMEOUT_POR_DEFECTO[t] };
+    const razonamiento = v.data.razonamiento ?? RAZONAMIENTO_POR_DEFECTO[t];
+    tareas[t] = {
+      proveedor: v.data.proveedor ?? e.IA_PROVEEDOR,
+      modelo: v.data.modelo ?? '',
+      timeoutMs: v.data.timeoutMs ?? TIMEOUT_POR_DEFECTO[t],
+      ...(razonamiento && razonamiento !== 'predeterminado' ? { razonamiento } : {}),
+    };
   }
 
   const protocolo = esquemaProtocolo.parse(JSON.parse(readFileSync(e.PROTOCOLO_EMERGENCIA, 'utf8')));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { esquemaParaGemini } from '../src/http.ts';
-import { ErrorProveedor, ModelosPorTarea, crearModelo, extraerImagen, extraerObjetoJson, type ConfigModeloTarea, type Tarea } from '../src/index.ts';
+import { ErrorProveedor, ModelosPorTarea, RESERVA_RAZONAMIENTO, configuracionGeneracion, crearModelo, extraerImagen, extraerObjetoJson, type ConfigModeloTarea, type Tarea } from '../src/index.ts';
 
 const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'];
 
@@ -123,5 +123,20 @@ describe('extraerImagen (respuesta de la API Interactions)', () => {
   it('sin imagen devuelve null', () => {
     expect(extraerImagen({ steps: [{ type: 'model_output', content: [{ type: 'text', text: 'no puedo' }] }] })).toBeNull();
     expect(extraerImagen(null)).toBeNull();
+  });
+});
+
+describe('configuracionGeneracion (Gemini)', () => {
+  it('suma la reserva de razonamiento al tope de texto', () => {
+    expect(configuracionGeneracion({ maxTokens: 600 }).maxOutputTokens).toBe(600 + RESERVA_RAZONAMIENTO);
+  });
+
+  it('envía el nivel de razonamiento solo si está configurado', () => {
+    expect(configuracionGeneracion({ maxTokens: 600 }, 'low').thinkingConfig).toEqual({ thinkingLevel: 'low' });
+    expect(configuracionGeneracion({ maxTokens: 600 })).not.toHaveProperty('thinkingConfig');
+  });
+
+  it('mantiene temperatura y JSON', () => {
+    expect(configuracionGeneracion({ temperatura: 0, respuestaJson: true })).toMatchObject({ temperature: 0, responseMimeType: 'application/json' });
   });
 });

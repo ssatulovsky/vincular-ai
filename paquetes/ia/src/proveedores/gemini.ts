@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { esquemaParaGemini, pedirJson } from '../http.ts';
-import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type PeticionEmbeddings, type PeticionImagen, type PeticionModelo, type RespuestaEmbeddings, type RespuestaImagen, type RespuestaModelo } from '../tipos.ts';
+import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type NivelRazonamiento, type PeticionEmbeddings, type PeticionImagen, type PeticionModelo, type RespuestaEmbeddings, type RespuestaImagen, type RespuestaModelo } from '../tipos.ts';
 
 interface Parte {
   text?: string;
@@ -16,6 +16,23 @@ export interface OpcionesGemini {
   /** Por defecto la API pública de Google AI. Para Vertex AI se usa su URL de región. */
   url?: string;
   timeoutMs?: number;
+  /** Nivel de razonamiento (thinkingLevel). Sin valor, el que el modelo usa por defecto. */
+  razonamiento?: NivelRazonamiento;
+}
+
+/**
+ * En Gemini los tokens de razonamiento cuentan dentro de maxOutputTokens: con un tope chico el
+ * modelo puede gastarlo entero pensando y responder vacío. maxTokens se refiere al texto, así
+ * que se suma esta reserva.
+ */
+export const RESERVA_RAZONAMIENTO = 2048;
+
+export function configuracionGeneracion(p: Pick<PeticionModelo, 'maxTokens' | 'temperatura' | 'respuestaJson'>, razonamiento?: NivelRazonamiento): Record<string, unknown> {
+  const c: Record<string, unknown> = { maxOutputTokens: (p.maxTokens ?? 1024) + RESERVA_RAZONAMIENTO };
+  if (p.temperatura !== undefined) c.temperature = p.temperatura;
+  if (p.respuestaJson) c.responseMimeType = 'application/json';
+  if (razonamiento) c.thinkingConfig = { thinkingLevel: razonamiento };
+  return c;
 }
 
 const URL_GEMINI = 'https://generativelanguage.googleapis.com/v1beta';
@@ -48,9 +65,7 @@ export class ModeloGemini implements ModeloIA {
       }
     }
 
-    const generationConfig: Record<string, unknown> = { maxOutputTokens: p.maxTokens ?? 1024 };
-    if (p.temperatura !== undefined) generationConfig.temperature = p.temperatura;
-    if (p.respuestaJson) generationConfig.responseMimeType = 'application/json';
+    const generationConfig = configuracionGeneracion(p, this.o.razonamiento);
 
     const datos = (await pedirJson('gemini', `${this.o.url ?? URL_GEMINI}/models/${encodeURIComponent(this.o.modelo)}:generateContent`, {
       cabeceras: { 'x-goog-api-key': this.o.apiKey },
@@ -92,6 +107,11 @@ export class ModeloGemini implements ModeloIA {
         ...(x.thoughtSignature ? { firma: x.thoughtSignature } : {}),
       }));
     if (llamadas.length > 0) return { tipo: 'herramientas', llamadas, ...(texto ? { texto } : {}), uso };
+    if (!texto) {
+      // Sin texto ni herramientas (p. ej. se acabó el tope pensando): es una falla, y queda
+      // registrada con su motivo en vez de pasar como respuesta exitosa vacía.
+      throw new ErrorProveedor('gemini', 'Respuesta sin texto', undefined, `finishReason=${datos.candidates?.[0]?.finishReason ?? '?'} razonamiento=${datos.usageMetadata?.thoughtsTokenCount ?? 0}`);
+    }
     return { tipo: 'texto', texto, uso };
   }
 
