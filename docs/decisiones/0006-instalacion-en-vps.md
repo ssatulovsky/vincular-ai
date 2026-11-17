@@ -1,4 +1,4 @@
-# 0005 · Instalación en un VPS Ubuntu propio
+# 0006 · Instalación en un VPS Ubuntu propio
 
 Fecha: 16-11-2026 · Estado: aceptada
 

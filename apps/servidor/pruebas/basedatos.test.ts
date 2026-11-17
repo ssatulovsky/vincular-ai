@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { inject } from 'vitest';
 import pg from 'pg';
@@ -71,6 +72,24 @@ describe('configuración', () => {
     expect(c.ia.tareas.conversacion).toMatchObject({ proveedor: 'gemini', modelo: 'g' });
     expect(c.ia.tareas.guardian).toMatchObject({ proveedor: 'anthropic', modelo: 'c' });
     expect(c.tareasSinModelo).toEqual(['riesgo', 'extraccion', 'informes', 'embeddings']);
+  });
+  it('trata las variables vacías del .env como no definidas', () => {
+    const c = cargarConfig({ ...base, BASE_URL_PUBLICA: '', GEMINI_URL: '', TWILIO_ACCOUNT_SID: '', IA_MODELO_CONVERSACION: '' });
+    expect(c.escalamiento.urlPublica).toBeNull();
+    expect(c.escalamiento.twilio).toBeNull();
+    expect(c.tareasSinModelo).toContain('conversacion');
+  });
+  it('el .env.example copiado tal cual, con la base y la clave completadas, es válido', () => {
+    const ejemplo = Object.fromEntries(
+      readFileSync(new URL('../../../.env.example', import.meta.url), 'utf8')
+        .split('\n')
+        .filter((l) => /^[A-Z0-9_]+=/.test(l))
+        .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
+    );
+    expect(() => cargarConfig({ ...ejemplo, ...base })).not.toThrow();
+  });
+  it('sigue rechazando una URL pública mal escrita', () => {
+    expect(() => cargarConfig({ ...base, BASE_URL_PUBLICA: 'vincular.cl' })).toThrow(/BASE_URL_PUBLICA/);
   });
   it('rechaza una clave de cifrado inválida', () => {
     expect(() => cargarConfig({ ...base, CLAVE_CIFRADO: 'corta' })).toThrow(/CLAVE_CIFRADO/);
