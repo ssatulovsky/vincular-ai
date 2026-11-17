@@ -194,6 +194,8 @@
   let grabadora = null, flujo = null, contextoAudio = null, analizador = null, cuadro = 0;
   let cola = [], indice = 0, turnoTerminado = true, ultimaRespuesta = [], reproductor = null, reproduciendo = false;
   let mensajePausa = null, conversando = false, descartarGrabacion = false, cuadroInterrupcion = 0, temporizadorEscucha = 0;
+  // Tiempo real (LiveKit): si el servidor lo ofrece, «Conversemos» usa una llamada de voz continua.
+  let trDisponible = false, modoTR = false, sala = null, cuadroTR = 0, vigiaTR = 0, ultimaActividadTR = 0;
 
   function fijarEstado(e, texto) {
     estado = e;
@@ -213,7 +215,7 @@
   // la pantalla o con un recordatorio de medicación; al pausar se libera el micrófono.
   function programarEscucha() {
     clearTimeout(temporizadorEscucha);
-    if (!conversando || recordatorioActual || !ws || ws.readyState !== 1) return;
+    if (!conversando || modoTR || recordatorioActual || !ws || ws.readyState !== 1) return;
     temporizadorEscucha = setTimeout(() => { if (conversando && estado === 'libre' && !recordatorioActual) empezarGrabacion(); }, 400);
   }
 
@@ -223,10 +225,12 @@
     $('conversar').textContent = 'Pausar';
     $('aviso-microfono').classList.add('oculto');
     try { (contextoAudio ??= new AudioContext()).resume(); } catch {}
+    if (trDisponible) return void iniciarTiempoReal();
     if (estado === 'libre') fijarEstado('libre');
   }
 
   function pausarConversacion(mensaje) {
+    if (modoTR) terminarTiempoReal();
     conversando = false;
     clearTimeout(temporizadorEscucha);
     $('conversar').setAttribute('aria-pressed', 'false');
@@ -315,6 +319,7 @@
         vaciarCola();
         cargarAgenda();
         cargarCompanero();
+        consultarTiempoReal();
         emergencia(m.modoEmergencia, m.emergencia);
         window.__emergencia = m.emergencia;
         fijarEstado('libre');
@@ -362,6 +367,7 @@
   function mostrarRecordatorio(r) {
     if (estado === 'escuchando') { descartarGrabacion = true; terminarGrabacion(); }
     if (estado === 'hablando') callar();
+    if (modoTR) silenciarTR(true);
     recordatorioActual = r;
     r.eventoIds.forEach((id) => recibidosDelServidor.add(id));
     $('recordatorio-texto').textContent = r.texto;
@@ -388,6 +394,7 @@
     if (!r) return;
     $('recordatorio').classList.add('oculto');
     recordatorioActual = null;
+    if (modoTR) silenciarTR(false);
     programarEscucha();
     const cuerpo = { eventoIds: r.eventoIds, tomadaEn: new Date().toISOString() };
     try {
@@ -497,11 +504,154 @@
   }
 
   function callar() {
+    if (modoTR) return interrumpirTR();
     if (reproductor) { reproductor.onended = null; reproductor.onerror = null; reproductor.pause(); }
     indice = cola.length;
     reproduciendo = false;
     $('dial').style.setProperty('--habla', 0);
     fijarEstado('libre');
+  }
+
+
+  // ── Tiempo real (LiveKit) ───────────────────────────────────────────────
+  // Una llamada de voz continua con el agente del servidor: él decide cuándo terminó de hablar la
+  // persona (pausas largas incluidas), responde con la voz elegida y se calla si lo interrumpen.
+  // La tablet solo muestra el estado, los subtítulos y anima la cara. Si algo falla, se vuelve a la
+  // conversación manos libres de siempre.
+  const ESTADOS_AGENTE = { initializing: 'pensando', listening: 'escuchando', thinking: 'pensando', speaking: 'hablando' };
+
+  async function consultarTiempoReal() {
+    try {
+      const r = await fetch('/api/tiempo-real', { headers: { authorization: `Bearer ${leerToken()}` } });
+      trDisponible = r.ok && (await r.json()).disponible === true;
+    } catch { trDisponible = false; }
+  }
+
+  function cargarClienteLiveKit() {
+    if (window.LivekitClient) return Promise.resolve(window.LivekitClient);
+    return new Promise((ok, falla) => {
+      const s = document.createElement('script');
+      s.src = '/vendor/livekit-client.js';
+      s.onload = () => (window.LivekitClient ? ok(window.LivekitClient) : falla(new Error('cliente')));
+      s.onerror = () => falla(new Error('cliente'));
+      document.head.append(s);
+    });
+  }
+
+  async function iniciarTiempoReal() {
+    modoTR = true;
+    fijarEstado('pensando', 'Conectando…');
+    try {
+      const LK = await cargarClienteLiveKit();
+      const r = await fetch('/api/tiempo-real/sesion', { method: 'POST', headers: { authorization: `Bearer ${leerToken()}` } });
+      if (!r.ok) throw new Error(`sesion ${r.status}`);
+      const { url, token } = await r.json();
+      if (!modoTR) return; // se pausó mientras conectaba
+      sala = new LK.Room({ audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      sala.on(LK.RoomEvent.TrackSubscribed, (pista) => {
+        if (pista.kind !== 'audio') return;
+        const el = pista.attach();
+        el.dataset.tr = '1';
+        document.body.append(el);
+        animarPistaTR(new MediaStream([pista.mediaStreamTrack]));
+      });
+      const estadoDelAgente = (p) => {
+        const e = ESTADOS_AGENTE[p?.attributes?.['lk.agent.state']];
+        if (!e || !sala || p === sala.localParticipant) return;
+        if (e === 'escuchando' || e === 'hablando') ultimaActividadTR = performance.now();
+        if (e !== estado) fijarEstado(e);
+      };
+      sala.on(LK.RoomEvent.ParticipantAttributesChanged, (_cambios, p) => estadoDelAgente(p));
+      sala.on(LK.RoomEvent.ParticipantConnected, estadoDelAgente);
+      sala.on(LK.RoomEvent.ActiveSpeakersChanged, (hablantes) => {
+        if (hablantes.some((h) => h === sala.localParticipant)) ultimaActividadTR = performance.now();
+      });
+      sala.on(LK.RoomEvent.DataReceived, (datos, _p, _tipo, tema) => {
+        if (tema !== 'vincular') return;
+        try {
+          const m = JSON.parse(new TextDecoder().decode(datos));
+          if (m.tipo === 'sesion') { window.__emergencia = m.emergencia; emergencia(m.modoEmergencia, m.emergencia); }
+          if (m.tipo === 'respuesta') emergencia(m.modoEmergencia, window.__emergencia);
+        } catch {}
+      });
+      sala.registerTextStreamHandler('lk.transcription', async (lector, quien) => {
+        try {
+          const texto = (await lector.readAll()).trim();
+          if (!texto || !sala) return;
+          if (quien.identity === sala.localParticipant.identity) $('dijo').textContent = `Usted dijo: «${texto}»`;
+          else $('responde').textContent = texto;
+        } catch {}
+      });
+      let conectada = false;
+      sala.on(LK.RoomEvent.Disconnected, () => {
+        // Un corte durante la conexión lo maneja el catch (vuelta al modo de siempre).
+        if (modoTR && conectada) pausarConversacion('Se cortó la conversación. Toque «Conversemos» para seguir.');
+      });
+      await sala.connect(url, token);
+      conectada = true;
+      await sala.localParticipant.setMicrophoneEnabled(true);
+      ultimaActividadTR = performance.now();
+      fijarEstado('pensando', 'Su compañero se está conectando…');
+      sala.remoteParticipants.forEach(estadoDelAgente);
+      // Sin voz por un buen rato (ni de la persona ni del compañero), se pausa sola y libera el micrófono.
+      vigiaTR = setInterval(() => {
+        if (modoTR && estado === 'escuchando' && !recordatorioActual && performance.now() - ultimaActividadTR > ESPERA_SIN_VOZ_MS) {
+          pausarConversacion('Me quedo atento. Toque «Conversemos» cuando quiera seguir.');
+        }
+      }, 5000);
+    } catch {
+      // Vuelta a la conversación manos libres de siempre (por turnos con el servidor).
+      terminarTiempoReal();
+      trDisponible = false;
+      if (conversando) fijarEstado('libre');
+    }
+  }
+
+  function terminarTiempoReal() {
+    modoTR = false;
+    clearInterval(vigiaTR);
+    cancelAnimationFrame(cuadroTR);
+    $('dial').style.setProperty('--habla', 0);
+    $('dial').style.setProperty('--nivel', 0);
+    document.querySelectorAll('audio[data-tr]').forEach((el) => el.remove());
+    const s = sala;
+    sala = null;
+    if (s) s.disconnect().catch(() => {});
+    if (estado !== 'libre') fijarEstado('libre');
+  }
+
+  function enviarAlAgente(m) {
+    if (!sala) return;
+    sala.localParticipant.publishData(new TextEncoder().encode(JSON.stringify(m)), { reliable: true, topic: 'vincular' }).catch(() => {});
+  }
+  function interrumpirTR() { enviarAlAgente({ tipo: 'interrumpir' }); }
+
+  // Con un recordatorio de medicación en pantalla, el compañero se calla y el micrófono se cierra.
+  function silenciarTR(silenciar) {
+    if (!sala) return;
+    if (silenciar) interrumpirTR();
+    sala.localParticipant.setMicrophoneEnabled(!silenciar).catch(() => {});
+    if (!silenciar) ultimaActividadTR = performance.now();
+  }
+
+  // La cara se mueve con la voz del compañero (la voz suena por su propio elemento de audio).
+  function animarPistaTR(flujoRemoto) {
+    try {
+      contextoAudio ??= new AudioContext();
+      const a = contextoAudio.createAnalyser();
+      a.fftSize = 512;
+      contextoAudio.createMediaStreamSource(flujoRemoto).connect(a);
+      const datos = new Float32Array(a.fftSize);
+      const paso = () => {
+        if (!modoTR) return;
+        a.getFloatTimeDomainData(datos);
+        const rms = Math.sqrt(datos.reduce((t, x) => t + x * x, 0) / datos.length);
+        $('dial').style.setProperty('--habla', estado === 'hablando' ? Math.min(1, rms * 6).toFixed(3) : 0);
+        cuadroTR = requestAnimationFrame(paso);
+      };
+      cancelAnimationFrame(cuadroTR);
+      cuadroTR = requestAnimationFrame(paso);
+    } catch {}
   }
 
   // ── Grabación con fin automático por silencio ───────────────────────────
@@ -570,6 +720,7 @@
 
   // ── Interacción ─────────────────────────────────────────────────────────
   $('dial').addEventListener('click', () => {
+    if (modoTR) { if (estado === 'hablando') interrumpirTR(); return; }
     if (estado === 'libre') empezarGrabacion();
     else if (estado === 'escuchando') terminarGrabacion();
     else if (estado === 'hablando') callar();
@@ -600,6 +751,7 @@
     e.preventDefault();
     const texto = $('texto').value.trim();
     if (!texto) return;
+    if (modoTR) pausarConversacion('Conversación en pausa');
     if (estado === 'escuchando') { descartarGrabacion = true; terminarGrabacion(); }
     else if (estado !== 'libre') return;
     $('texto').value = '';

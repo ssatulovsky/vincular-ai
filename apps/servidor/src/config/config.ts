@@ -70,6 +70,19 @@ const esquemaEntorno = esquemaEntornoVoz.extend({
   TWILIO_VOZ: z.string().optional(),
   // URL pública del servidor (https://…), para los webhooks de Twilio: acuse con "1" y estados.
   BASE_URL_PUBLICA: z.string().url().optional(),
+  // ── Conversación en tiempo real (LiveKit) ──
+  // URL pública para la tablet (wss://…) y URL interna para el agente (ws://127.0.0.1:7880).
+  LIVEKIT_URL_PUBLICA: z.string().url().optional(),
+  LIVEKIT_URL: z.string().url().optional(),
+  LIVEKIT_API_KEY: z.string().min(3).optional(),
+  LIVEKIT_API_SECRET: z.string().min(32, 'LIVEKIT_API_SECRET debe tener al menos 32 caracteres').optional(),
+  LIVEKIT_AGENTE: z.string().regex(/^[a-z0-9-]{3,40}$/).default('vincular-companero'),
+  // Voz a texto en tiempo real (ElevenLabs Scribe realtime) y espera para dar por terminado el turno.
+  ELEVENLABS_MODELO_STT_TIEMPO_REAL: z.string().default('scribe_v2_realtime'),
+  TIEMPO_REAL_FIN_TURNO_MIN_S: z.coerce.number().min(0.3).max(5).default(1.2),
+  TIEMPO_REAL_FIN_TURNO_MAX_S: z.coerce.number().min(0.5).max(10).default(4),
+  /** Puerto local de salud del proceso del agente (solo 127.0.0.1). */
+  TIEMPO_REAL_PUERTO_AGENTE: z.coerce.number().int().min(1024).max(65535).default(8081),
   // Diseño del compañero: grupos de 3 retratos que se pueden crear por persona y día (costo).
   AVATAR_RONDAS_POR_DIA: z.coerce.number().int().min(0).max(20).default(4),
   ESCALAMIENTO_EMERGENCIA_SIN_RESPUESTA_MIN: z.coerce.number().int().positive().default(10),
@@ -114,6 +127,17 @@ export interface Config {
   medicacion: PlazosMedicacion;
   planificador: boolean;
   companero: { maxRondasAvatarDia: number };
+  /** null = sin tiempo real (la tablet usa el modo manos libres por turnos). */
+  tiempoReal: {
+    urlPublica: string;
+    urlInterna: string;
+    apiKey: string;
+    apiSecret: string;
+    agente: string;
+    modeloStt: string;
+    finTurno: { minS: number; maxS: number };
+    puertoAgente: number;
+  } | null;
   escalamiento: {
     twilio: ConfigTwilio | null;
     urlPublica: string | null;
@@ -182,6 +206,19 @@ export function cargarConfig(entornoOriginal: NodeJS.ProcessEnv = process.env): 
     medicacion: { segundoAvisoMin: e.MEDICACION_SEGUNDO_AVISO_MIN, sinRespuestaMin: e.MEDICACION_SIN_RESPUESTA_MIN, vencimientoMin: 60 },
     planificador: e.PLANIFICADOR === 'si',
     companero: { maxRondasAvatarDia: e.AVATAR_RONDAS_POR_DIA },
+    tiempoReal:
+      e.LIVEKIT_URL_PUBLICA && e.LIVEKIT_URL && e.LIVEKIT_API_KEY && e.LIVEKIT_API_SECRET
+        ? {
+            urlPublica: e.LIVEKIT_URL_PUBLICA.replace(/\/+$/, ''),
+            urlInterna: e.LIVEKIT_URL.replace(/\/+$/, ''),
+            apiKey: e.LIVEKIT_API_KEY,
+            apiSecret: e.LIVEKIT_API_SECRET,
+            agente: e.LIVEKIT_AGENTE,
+            modeloStt: e.ELEVENLABS_MODELO_STT_TIEMPO_REAL,
+            finTurno: { minS: e.TIEMPO_REAL_FIN_TURNO_MIN_S, maxS: Math.max(e.TIEMPO_REAL_FIN_TURNO_MAX_S, e.TIEMPO_REAL_FIN_TURNO_MIN_S) },
+            puertoAgente: e.TIEMPO_REAL_PUERTO_AGENTE,
+          }
+        : null,
     escalamiento: {
       twilio: e.TWILIO_ACCOUNT_SID && e.TWILIO_AUTH_TOKEN && e.TWILIO_ORIGEN ? { accountSid: e.TWILIO_ACCOUNT_SID, authToken: e.TWILIO_AUTH_TOKEN, origen: e.TWILIO_ORIGEN } : null,
       urlPublica: e.BASE_URL_PUBLICA?.replace(/\/+$/, '') ?? null,
