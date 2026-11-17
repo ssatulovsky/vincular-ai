@@ -22,20 +22,16 @@ export const rutasVoz =
         porDefecto: app.catalogoVoces.porDefecto,
         voces: app.catalogoVoces.ofrecidas.map((id) => {
           const v = app.catalogoVoces.voces.find((x) => x.id === id)!;
-          return { id: v.id, nombre: v.nombre, genero: v.genero ?? null, grave: v.grave ?? false };
+          return { id: v.id, nombre: v.nombre, descripcion: v.descripcion ?? null, genero: v.genero ?? null, edad: v.edad ?? null, grave: v.grave ?? false };
         }),
       };
     });
 
     /** Muestra de una voz, en el trato y la velocidad de la persona. Se guarda en memoria. */
-    f.get('/api/voces/:id/muestra', async (req, reply) => {
-      const actor = exigirActor(req);
-      if (actor.tipo !== 'dispositivo') throw new ErrorHttp(403, 'Solo desde la tablet de la persona');
-      await exigirPermiso(app.bd, actor, 'perfil_companero.editar', actor.personaId);
-      const { id } = z.object({ id: z.string() }).parse(req.params);
+    const muestra = async (personaId: string, id: string): Promise<Buffer> => {
       exigirVozOfrecida(app, id);
       const voz = vozDelCatalogo(app.catalogoVoces, id);
-      const perfil = (await leerPerfil(app.bd, actor.personaId)) ?? PERFIL_POR_DEFECTO;
+      const perfil = (await leerPerfil(app.bd, personaId)) ?? PERFIL_POR_DEFECTO;
       const clave = `${id}|${perfil.trato}|${perfil.velocidad_voz}`;
       let audio = muestras.get(clave);
       if (!audio) {
@@ -47,6 +43,23 @@ export const rutasVoz =
         }
         muestras.set(clave, audio);
       }
-      return reply.type('audio/mpeg').header('cache-control', 'private, max-age=3600').send(audio);
+      return audio;
+    };
+
+    f.get('/api/voces/:id/muestra', async (req, reply) => {
+      const actor = exigirActor(req);
+      if (actor.tipo !== 'dispositivo') throw new ErrorHttp(403, 'Solo desde la tablet de la persona');
+      await exigirPermiso(app.bd, actor, 'perfil_companero.editar', actor.personaId);
+      const { id } = z.object({ id: z.string() }).parse(req.params);
+      return reply.type('audio/mpeg').header('cache-control', 'private, max-age=3600').send(await muestra(actor.personaId, id));
+    });
+
+    /** La misma muestra para el profesional que diseña el compañero desde el panel. */
+    f.get('/api/personas/:persona/voces/:id/muestra', async (req, reply) => {
+      const actor = exigirActor(req);
+      const { persona, id } = z.object({ persona: z.string().uuid(), id: z.string() }).parse(req.params);
+      if (actor.tipo !== 'personal') throw new ErrorHttp(403, 'Solo para el equipo');
+      await exigirPermiso(app.bd, actor, 'perfil_companero.editar', persona);
+      return reply.type('audio/mpeg').header('cache-control', 'private, max-age=3600').send(await muestra(persona, id));
     });
   };

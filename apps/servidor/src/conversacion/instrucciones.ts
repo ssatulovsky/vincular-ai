@@ -119,6 +119,8 @@ function seccionEstado(c: ContextoInstrucciones): string {
   return '';
 }
 
+const EDAD = { joven: 'de adulto joven', adulta: 'de adulto de mediana edad', mayor: 'de persona mayor' } as const;
+
 export function construirInstrucciones(c: ContextoInstrucciones): string {
   const fecha = new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', dateStyle: 'full', timeStyle: 'short' }).format(c.ahora);
   const p = c.perfil;
@@ -131,7 +133,7 @@ export function construirInstrucciones(c: ContextoInstrucciones): string {
 - Trato: ${p.trato === 'tu' ? 'tutea a la persona' : 'trata a la persona de usted'}.
 - Rol: ${ROL[p.rol_preferente]}
 - Personalidad: ${p.personalidad || 'cálida y paciente'}
-- Forma de hablar: ${p.forma_de_hablar || 'clara y sencilla'}`,
+- Forma de hablar: ${p.forma_de_hablar || 'clara y sencilla'}${p.genero ? `\n- Te presentas en ${p.genero === 'femenina' ? 'femenino ("estoy contenta")' : 'masculino ("estoy contento")'}.` : ''}${p.edad_aparente ? `\n- Tu voz y tu imagen aparentan una edad ${EDAD[p.edad_aparente]}; eso no te da una vida humana: no tienes historia, familia ni recuerdos propios.` : ''}`,
     `# Lo que sabes de ${c.nombrePersona}\nÚsalo con naturalidad, sin recitarlo. Si algo parece cambiado, pregúntalo con tacto. Lo marcado (privado) quedó entre ustedes: no lo menciones como algo que otros saben.\n${c.hechos.length ? c.hechos.map((x) => `- ${x.contenido}${x.privado ? ' (privado)' : ''}`).join('\n') : '- (todavía nada)'}`,
     c.porConfirmar.length
       ? `# Datos por confirmar\nLos anotaste en conversaciones anteriores y pueden estar mal. Si calza, retoma UNO de forma natural ("¿su nieta era la que vive en Temuco, cierto?"). Si lo confirma usa memoria_confirmar; si lo corrige, memoria_corregir.\n${c.porConfirmar.slice(0, 10).map((x) => `- [${x.id}] ${x.contenido}`).join('\n')}`

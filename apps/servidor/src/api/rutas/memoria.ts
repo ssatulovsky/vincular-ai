@@ -6,6 +6,7 @@ import { borrarMemoria, confirmarHecho, corregirHecho, episodiosRecientes, expor
 import { auditar } from '../../seguridad/auditoria.ts';
 import { exigirPermiso, type Actor } from '../../seguridad/permisos.ts';
 import { ErrorHttp, exigirActor, type Aplicacion } from '../servidor.ts';
+import { ErrorAvatares, exigirAvatarPropio } from '../../companero/avatares.ts';
 
 type ActorDispositivo = Extract<Actor, { tipo: 'dispositivo' }>;
 
@@ -15,6 +16,16 @@ function exigirPersona(actor: Actor): ActorDispositivo {
 }
 
 const FRASE_BORRAR_TODO = 'BORRAR TODO';
+
+/** El avatar elegido debe ser un retrato generado para esa misma persona. */
+async function exigirAvatarDe(app: Aplicacion, personaId: string, avatarId: string | null): Promise<void> {
+  try {
+    await exigirAvatarPropio(app.bd, personaId, avatarId);
+  } catch (e) {
+    if (e instanceof ErrorAvatares) throw new ErrorHttp(e.estado, e.message);
+    throw e;
+  }
+}
 
 /**
  * Control de la memoria (especificación, sección 2 y 9): la persona ve, corrige, olvida, marca
@@ -104,6 +115,7 @@ export const rutasMemoria =
       await exigirPermiso(app.bd, a, 'perfil_companero.editar', a.personaId);
       const p = esquemaPerfil.parse(req.body);
       exigirVozOfrecida(app, p.voz_id);
+      await exigirAvatarDe(app, a.personaId, p.avatar_id);
       await guardarPerfil(app.bd, a.personaId, p);
       await auditar(app.bd, a, { accion: 'perfil_companero.editar', recursoTipo: 'perfil_companero', recursoId: a.personaId, personaId: a.personaId, detalle: { via: 'persona' } });
       return { ok: true };

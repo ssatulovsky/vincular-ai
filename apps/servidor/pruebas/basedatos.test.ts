@@ -71,7 +71,7 @@ describe('configuración', () => {
     const c = cargarConfig({ ...base, IA_PROVEEDOR: 'gemini', IA_PROVEEDOR_GUARDIAN: 'anthropic', IA_MODELO_CONVERSACION: 'g', IA_MODELO_GUARDIAN: 'c' });
     expect(c.ia.tareas.conversacion).toMatchObject({ proveedor: 'gemini', modelo: 'g' });
     expect(c.ia.tareas.guardian).toMatchObject({ proveedor: 'anthropic', modelo: 'c' });
-    expect(c.tareasSinModelo).toEqual(['riesgo', 'extraccion', 'informes', 'embeddings']);
+    expect(c.tareasSinModelo).toEqual(['riesgo', 'extraccion', 'informes', 'embeddings', 'imagenes']);
   });
   it('trata las variables vacías del .env como no definidas', () => {
     const c = cargarConfig({ ...base, BASE_URL_PUBLICA: '', GEMINI_URL: '', TWILIO_ACCOUNT_SID: '', IA_MODELO_CONVERSACION: '' });

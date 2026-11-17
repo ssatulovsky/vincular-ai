@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { esquemaParaGemini } from '../src/http.ts';
-import { ErrorProveedor, ModelosPorTarea, crearModelo, extraerObjetoJson, type ConfigModeloTarea, type Tarea } from '../src/index.ts';
+import { ErrorProveedor, ModelosPorTarea, crearModelo, extraerImagen, extraerObjetoJson, type ConfigModeloTarea, type Tarea } from '../src/index.ts';
 
 const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'];
 
@@ -105,5 +105,23 @@ describe('esquemaParaGemini', () => {
       type: 'object',
       properties: { a: { type: 'object' } },
     });
+  });
+});
+
+describe('extraerImagen (respuesta de la API Interactions)', () => {
+  const datos = Buffer.from('imagen-de-prueba').toString('base64');
+  it('lee output_image.data', () => {
+    const r = extraerImagen({ output_image: { data: datos, mime_type: 'image/png' } });
+    expect(r?.imagen.toString()).toBe('imagen-de-prueba');
+    expect(r?.mime).toBe('image/png');
+  });
+  it('si no está, toma el último bloque de imagen de los pasos', () => {
+    const r = extraerImagen({ steps: [{ type: 'model_output', content: [{ type: 'text', text: 'listo' }, { type: 'image', data: datos }] }] });
+    expect(r?.imagen.toString()).toBe('imagen-de-prueba');
+    expect(r?.mime).toBe('image/jpeg');
+  });
+  it('sin imagen devuelve null', () => {
+    expect(extraerImagen({ steps: [{ type: 'model_output', content: [{ type: 'text', text: 'no puedo' }] }] })).toBeNull();
+    expect(extraerImagen(null)).toBeNull();
   });
 });

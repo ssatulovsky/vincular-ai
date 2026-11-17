@@ -1,5 +1,5 @@
 import { pedirJson } from '../http.ts';
-import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type PeticionModelo, type RespuestaEmbeddings, type RespuestaModelo } from '../tipos.ts';
+import { ErrorProveedor, type LlamadaHerramienta, type ModeloIA, type PeticionModelo, type RespuestaEmbeddings, type RespuestaImagen, type RespuestaModelo } from '../tipos.ts';
 
 interface Bloque {
   type: string;
@@ -78,6 +78,11 @@ export class ModeloAnthropic implements ModeloIA {
   /** La API de Anthropic no ofrece embeddings: configure IA_PROVEEDOR_EMBEDDINGS=gemini. */
   async incrustar(): Promise<RespuestaEmbeddings> {
     throw new ErrorProveedor('anthropic', 'Anthropic no ofrece embeddings; configure otro proveedor para la tarea "embeddings"');
+  }
+
+  /** La API de Anthropic no genera imágenes: configure IA_PROVEEDOR_IMAGENES=gemini. */
+  async generarImagen(): Promise<RespuestaImagen> {
+    throw new ErrorProveedor('anthropic', 'Anthropic no genera imágenes; configure otro proveedor para la tarea "imagenes"');
   }
 
   async listarModelos(): Promise<string[]> {

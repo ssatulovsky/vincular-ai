@@ -11,7 +11,7 @@ import type { ConfigTwilio } from '../escalamiento/twilio.ts';
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 const proveedor = z.enum(['gemini', 'anthropic']);
-const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'];
+const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings', 'imagenes'];
 
 const esquemaEntornoVoz = z.object({
   VOZ_CATALOGO: z.string().default(path.join(RAIZ, 'config/voz/voces.json')),
@@ -70,6 +70,8 @@ const esquemaEntorno = esquemaEntornoVoz.extend({
   TWILIO_VOZ: z.string().optional(),
   // URL pública del servidor (https://…), para los webhooks de Twilio: acuse con "1" y estados.
   BASE_URL_PUBLICA: z.string().url().optional(),
+  // Diseño del compañero: grupos de 3 retratos que se pueden crear por persona y día (costo).
+  AVATAR_RONDAS_POR_DIA: z.coerce.number().int().min(0).max(20).default(4),
   ESCALAMIENTO_EMERGENCIA_SIN_RESPUESTA_MIN: z.coerce.number().int().positive().default(10),
 });
 
@@ -92,7 +94,7 @@ const esquemaProtocolo = z.object({
   }),
 });
 
-const TIMEOUT_POR_DEFECTO: Record<Tarea, number> = { conversacion: 30_000, guardian: 10_000, riesgo: 10_000, extraccion: 30_000, informes: 120_000, embeddings: 15_000 };
+const TIMEOUT_POR_DEFECTO: Record<Tarea, number> = { conversacion: 30_000, guardian: 10_000, riesgo: 10_000, extraccion: 30_000, informes: 120_000, embeddings: 15_000, imagenes: 90_000 };
 
 export interface Config {
   entorno: 'development' | 'test' | 'production';
@@ -111,6 +113,7 @@ export interface Config {
   voz: { catalogo: string; umbralConfianza: number; servicios: ConfigVoz };
   medicacion: PlazosMedicacion;
   planificador: boolean;
+  companero: { maxRondasAvatarDia: number };
   escalamiento: {
     twilio: ConfigTwilio | null;
     urlPublica: string | null;
@@ -178,6 +181,7 @@ export function cargarConfig(entornoOriginal: NodeJS.ProcessEnv = process.env): 
     voz: configVozDe(e),
     medicacion: { segundoAvisoMin: e.MEDICACION_SEGUNDO_AVISO_MIN, sinRespuestaMin: e.MEDICACION_SIN_RESPUESTA_MIN, vencimientoMin: 60 },
     planificador: e.PLANIFICADOR === 'si',
+    companero: { maxRondasAvatarDia: e.AVATAR_RONDAS_POR_DIA },
     escalamiento: {
       twilio: e.TWILIO_ACCOUNT_SID && e.TWILIO_AUTH_TOKEN && e.TWILIO_ORIGEN ? { accountSid: e.TWILIO_ACCOUNT_SID, authToken: e.TWILIO_AUTH_TOKEN, origen: e.TWILIO_ORIGEN } : null,
       urlPublica: e.BASE_URL_PUBLICA?.replace(/\/+$/, '') ?? null,

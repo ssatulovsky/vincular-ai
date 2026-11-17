@@ -50,6 +50,7 @@ Complete, según el proveedor que use:
 | `IA_PROVEEDOR` | `gemini` o `anthropic` |
 | `GEMINI_API_KEY` o `ANTHROPIC_API_KEY` | Su clave |
 | `IA_MODELO_CONVERSACION`, `IA_MODELO_GUARDIAN`, `IA_MODELO_RIESGO`, `IA_MODELO_EXTRACCION` | Los modelos. Con Claude, el archivo trae un ejemplo comentado. Para ver los modelos disponibles con su clave: `cd /opt/vincular-ai && sudo -u vincular bash -c 'set -a; . ./.env; set +a; npm run ia:modelos'` |
+| `IA_MODELO_IMAGENES` | Opcional: modelo de Gemini para los retratos del compañero (p. ej. `gemini-3.1-flash-lite-image`). Usa la misma `GEMINI_API_KEY` |
 | `ELEVENLABS_API_KEY` y `VOZ_STT_PROVEEDOR=elevenlabs` | Opcional: reconocimiento de voz con ElevenLabs (plan gratuito para pruebas) |
 | `VOZ_GOOGLE_CLAVE_API` | Opcional: las voces del catálogo (Google Chirp 3 HD). Es una clave de Google Cloud con la API Text-to-Speech activada, distinta de la clave de Gemini |
 
@@ -67,7 +68,9 @@ sudo bash /opt/vincular-ai/scripts/vps/alta-prueba.sh
 
 El último comando pide un nombre y una comuna de prueba y muestra un **código**. En la tablet, abra `https://<su-dirección>/tablet` y pegue ese código.
 
-Opcional, para la API de administración y los paneles futuros:
+Para diseñar el compañero (género, edad, nombre, voz y retrato): en la tablet, el enlace **Mi compañero**; desde un computador, `https://<su-dirección>/companero` con una cuenta del equipo.
+
+Opcional, para la API de administración y la pantalla de diseño desde el computador:
 
 ```bash
 sudo bash /opt/vincular-ai/scripts/vps/crear-admin.sh
