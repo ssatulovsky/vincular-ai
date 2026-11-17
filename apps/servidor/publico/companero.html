@@ -360,7 +360,17 @@
   }
 
   // ── Voces ────────────────────────────────────────────────────────────────
-  let reproductor = null;
+  const reproductor = new Audio();
+  const muestras = new Map();
+  async function reproducir(url, aviso) {
+    reproductor.pause();
+    reproductor.src = url;
+    try {
+      await reproductor.play();
+    } catch (e) {
+      aviso.textContent = e && e.name === 'NotAllowedError' ? 'Toque «Escuchar» otra vez para oírla.' : 'No se pudo reproducir el audio en este dispositivo.';
+    }
+  }
   function pintarVoces() {
     $('error-voz').textContent = '';
     const objetivo = ORDEN_EDAD.indexOf(d.edad_aparente);
@@ -376,19 +386,23 @@
       const n = document.createElement('strong'); n.textContent = v.nombre;
       const t = document.createElement('span'); t.textContent = v.descripcion || '';
       info.append(n, t);
+      const aviso = document.createElement('p');
+      aviso.className = 'error'; aviso.setAttribute('role', 'alert'); aviso.style.gridColumn = '1 / -1'; aviso.style.margin = '0';
       const oir = boton('Escuchar', '', async () => {
-        $('error-voz').textContent = '';
+        aviso.textContent = '';
+        // Safari (iPad) solo deja sonar audio dentro del toque: si la muestra ya está, suena al tiro;
+        // si hay que traerla, se intenta y, si el navegador lo impide, el segundo toque suena seguro.
+        if (muestras.has(v.id)) return reproducir(muestras.get(v.id), aviso);
         oir.disabled = true; oir.textContent = 'Cargando…';
         try {
           const r = await api('GET', rutas.muestra(v.id));
-          if (reproductor) reproductor.pause();
-          reproductor = new Audio(URL.createObjectURL(await r.blob()));
-          await reproductor.play();
-        } catch (e) { $('error-voz').textContent = e.message; }
+          muestras.set(v.id, URL.createObjectURL(await r.blob()));
+          await reproducir(muestras.get(v.id), aviso);
+        } catch (e) { aviso.textContent = e.message; }
         finally { oir.disabled = false; oir.textContent = 'Escuchar'; }
       });
       const elegir = boton(v.id === d.voz_id ? 'Elegida' : 'Elegir', 'elegir', () => { d.voz_id = v.id; pintarVoces(); actualizar(); });
-      fila.append(info, oir, elegir);
+      fila.append(info, oir, elegir, aviso);
       return fila;
     }));
     actualizar();

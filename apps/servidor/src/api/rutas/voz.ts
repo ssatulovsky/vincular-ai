@@ -38,8 +38,12 @@ export const rutasVoz =
         const texto = perfil.trato === 'tu' ? `Hola, me llamo ${voz.nombre}. ¿Te gusta cómo suena mi voz?` : `Hola, me llamo ${voz.nombre}. ¿Le gusta cómo suena mi voz?`;
         try {
           audio = (await app.voz.sintetizador(voz.proveedor).sintetizar({ texto: prepararParaVoz(texto), voz, velocidad: perfil.velocidad_voz })).audio;
-        } catch {
-          throw new ErrorHttp(503, 'La voz no está disponible en este momento');
+        } catch (err) {
+          const e = err as Error & { proveedor?: string; estado?: number; interno?: string };
+          console.warn(
+            JSON.stringify({ level: 40, msg: 'voz.muestra.falla', voz: id, proveedor: e.proveedor ?? null, estado: e.estado ?? null, error: e.message, detalle: e.interno ? e.interno.replace(/\s+/g, ' ').slice(0, 300) : null }),
+          );
+          throw new ErrorHttp(503, 'Esta voz no está disponible en este momento');
         }
         muestras.set(clave, audio);
       }
