@@ -77,3 +77,25 @@ export async function contextoPersona(bd: Consultable, cifrador: Cifrador, perso
     episodios,
   };
 }
+
+/**
+ * Abre una sesión y, si hay una emergencia (nivel 3) sin acuse en las últimas 24 h, la deja en
+ * modo emergencia desde el inicio: el agente no vuelve a una conversación normal.
+ */
+export async function abrirSesionConEmergencia(
+  bd: Consultable,
+  personaId: string,
+  dispositivoId: string | null,
+  canal: 'texto' | 'voz',
+): Promise<{ sesionId: string; modoEmergencia: boolean }> {
+  const sesionId = await abrirSesion(bd, personaId, dispositivoId, 'persona', canal);
+  const pendiente = await bd.query<{ categorias: string[] }>(
+    `SELECT categorias FROM evento_riesgo
+      WHERE persona_id = $1 AND nivel = 3 AND acusado_en IS NULL AND creado_en > now() - interval '24 hours'
+      ORDER BY creado_en DESC LIMIT 1`,
+    [personaId],
+  );
+  const e = pendiente.rows[0];
+  if (e) await bd.query('UPDATE sesion_conversacion SET modo_emergencia = true, categorias_emergencia = $2 WHERE id = $1', [sesionId, e.categorias]);
+  return { sesionId, modoEmergencia: Boolean(e) };
+}

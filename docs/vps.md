@@ -76,6 +76,20 @@ Opcional, para la API de administración y la pantalla de diseño desde el compu
 sudo bash /opt/vincular-ai/scripts/vps/crear-admin.sh
 ```
 
+## 5. Conversación en tiempo real (opcional)
+
+Por defecto la tablet conversa por turnos: escucha, envía lo que oyó y responde. Con tiempo real la conversación es una llamada de voz continua: el compañero detecta cuándo terminó de hablar (respetando pausas largas), responde con su voz y se calla si la persona lo interrumpe. Usa LiveKit, un servidor de audio libre que corre en el mismo VPS, sin suscripción. La voz de ElevenLabs se cobra igual que en el modo por turnos.
+
+```bash
+sudo bash /opt/vincular-ai/scripts/vps/tiempo-real.sh
+```
+
+El script instala LiveKit, publica `https://livekit.<su-dirección>` con su certificado, escribe las claves en el `.env` (no hay que copiar nada) y deja dos servicios nuevos: `livekit` y `vincular-agente`.
+
+**Además**, en el firewall del panel web de su proveedor abra **TCP 7881** y **UDP 50000-60000**: por ahí pasa el audio.
+
+En la tablet, recargue `/tablet` y toque «Conversemos». Si el tiempo real no está disponible o la conexión falla, la tablet vuelve sola al modo por turnos.
+
 ## Actualizar a la última versión
 
 ```bash
@@ -89,6 +103,8 @@ sudo bash /opt/vincular-ai/scripts/vps/actualizar.sh
 | `journalctl` muestra "Configuración inválida" | Una variable del `.env` mal escrita; el mensaje dice cuál |
 | La tablet no abre la página | Que los puertos 80 y 443 estén abiertos en el panel del proveedor del VPS |
 | El micrófono no funciona | La dirección debe empezar con `https://` |
+| «Conversemos» se queda en «Conectando…» | `sudo journalctl -u vincular-agente -n 50 --no-pager`; que TCP 7881 y UDP 50000-60000 estén abiertos en el panel del proveedor |
+| El compañero no escucha en tiempo real | La clave de ElevenLabs y su plan (`journalctl -u vincular-agente` muestra el error de ElevenLabs) |
 | sslip.io no obtiene certificado | Límite de Let's Encrypt para ese dominio compartido: use un subdominio propio |
 
 ## Límites de este entorno

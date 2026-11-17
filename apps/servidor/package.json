@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
+    "agente": "node --import tsx src/agente/index.ts start",
     "db:migrar": "tsx src/db/migrar.ts",
     "cli:crear-cuenta": "tsx src/cli/crearCuenta.ts",
     "cli:alta-prueba": "tsx src/cli/altaPrueba.ts",
@@ -27,8 +28,13 @@
   "dependencies": {
     "@fastify/rate-limit": "^11.2.2",
     "@fastify/websocket": "^11.3.7",
+    "@livekit/agents": "^1.10.0",
+    "@livekit/agents-plugin-elevenlabs": "^1.10.0",
+    "@livekit/agents-plugin-silero": "^1.10.0",
     "@node-rs/argon2": "^2.2.2",
     "fastify": "^5.12.8",
+    "livekit-client": "^2.24.1",
+    "livekit-server-sdk": "^2.20.0",
     "pg": "^8.23.1",
     "zod": "^4.6.7"
   }

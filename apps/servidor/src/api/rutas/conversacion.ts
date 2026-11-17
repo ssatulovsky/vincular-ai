@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { abrirSesion, leerSesion } from '../../conversacion/repositorio.ts';
+import { abrirSesionConEmergencia, leerSesion } from '../../conversacion/repositorio.ts';
 import { ErrorConversacion } from '../../conversacion/orquestador.ts';
 import { actorDesdeToken } from '../../seguridad/autenticacion.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
@@ -23,18 +23,7 @@ function exigirDispositivo(actor: Actor | null): ActorDispositivo {
  * TODO(clinico): confirmar la ventana de 24 horas.
  */
 async function abrir(app: Aplicacion, actor: ActorDispositivo, canal: 'texto' | 'voz'): Promise<{ sesionId: string; modoEmergencia: boolean }> {
-  const sesionId = await abrirSesion(app.bd, actor.personaId, actor.id, 'persona', canal);
-  const pendiente = await app.bd.query<{ categorias: string[] }>(
-    `SELECT categorias FROM evento_riesgo
-      WHERE persona_id = $1 AND nivel = 3 AND acusado_en IS NULL AND creado_en > now() - interval '24 hours'
-      ORDER BY creado_en DESC LIMIT 1`,
-    [actor.personaId],
-  );
-  const e = pendiente.rows[0];
-  if (e) {
-    await app.bd.query('UPDATE sesion_conversacion SET modo_emergencia = true, categorias_emergencia = $2 WHERE id = $1', [sesionId, e.categorias]);
-  }
-  return { sesionId, modoEmergencia: Boolean(e) };
+  return abrirSesionConEmergencia(app.bd, actor.personaId, actor.id, canal);
 }
 
 async function cerrar(app: Aplicacion, actor: ActorDispositivo, sesionId: string): Promise<{ cerrada: boolean; motivo?: string }> {
