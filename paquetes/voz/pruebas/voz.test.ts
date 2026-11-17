@@ -53,9 +53,12 @@ describe('tasa de error por palabra', () => {
 
 describe('catálogo de voces', () => {
   const catalogo = JSON.parse(readFileSync(new URL('../../../config/voz/voces.json', import.meta.url), 'utf8'));
-  it('el catálogo del repositorio es válido y ofrece 3 voces, una grave', () => {
+  it('el catálogo del repositorio es válido y ofrece voces de ambos géneros, con edad y al menos una grave', () => {
     const c = validarCatalogo(catalogo);
-    expect(c.ofrecidas).toHaveLength(3);
+    const ofrecidas = c.ofrecidas.map((id) => c.voces.find((v) => v.id === id)!);
+    expect(ofrecidas.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(ofrecidas.map((v) => v.genero))).toEqual(new Set(['femenina', 'masculina']));
+    expect(ofrecidas.every((v) => v.edad && v.voz !== 'PENDIENTE')).toBe(true);
     expect(c.ofrecidas.some((id) => c.voces.find((v) => v.id === id)?.grave)).toBe(true);
   });
   it('rechaza ofrecer una voz que no existe y vuelve a la voz por defecto si falta', () => {

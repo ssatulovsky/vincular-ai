@@ -22,7 +22,7 @@ export const rutasVoz =
         porDefecto: app.catalogoVoces.porDefecto,
         voces: app.catalogoVoces.ofrecidas.map((id) => {
           const v = app.catalogoVoces.voces.find((x) => x.id === id)!;
-          return { id: v.id, nombre: v.nombre, genero: v.genero ?? null, grave: v.grave ?? false };
+          return { id: v.id, nombre: v.nombre, descripcion: v.descripcion ?? null, genero: v.genero ?? null, edad: v.edad ?? null, grave: v.grave ?? false };
         }),
       };
     });

@@ -96,25 +96,28 @@ describe('turno por voz', () => {
 });
 
 describe('voces del onboarding', () => {
-  it('lista las 3 voces ofrecidas, con una grave', async () => {
-    const r = await pedir<{ voces: Array<{ id: string; grave: boolean }> }>(e.f, 'GET', '/api/voces', e.tokens.dispositivo);
-    expect(r.datos.voces).toHaveLength(3);
+  it('lista las voces ofrecidas con género y edad para filtrar, al menos una grave y una de cada género', async () => {
+    const r = await pedir<{ porDefecto: string; voces: Array<{ id: string; grave: boolean; genero: string | null; edad: string | null }> }>(e.f, 'GET', '/api/voces', e.tokens.dispositivo);
+    expect(r.datos.voces.length).toBeGreaterThanOrEqual(3);
     expect(r.datos.voces.some((v) => v.grave)).toBe(true);
+    expect(new Set(r.datos.voces.map((v) => v.genero))).toEqual(new Set(['femenina', 'masculina']));
+    expect(r.datos.voces.every((v) => v.edad !== null)).toBe(true);
+    expect(r.datos.voces.map((v) => v.id)).toContain(r.datos.porDefecto);
   });
 
   it('la muestra solo se pide desde la tablet y responde 503 si la voz no está disponible', async () => {
-    expect((await pedir(e.f, 'GET', '/api/voces/g-chirp-femenina/muestra', e.tokens.supervisor)).estado).toBe(403);
+    expect((await pedir(e.f, 'GET', '/api/voces/el-silvana/muestra', e.tokens.supervisor)).estado).toBe(403);
     expect((await pedir(e.f, 'GET', '/api/voces/no-ofrecida/muestra', e.tokens.dispositivo)).estado).toBe(400);
-    expect((await pedir(e.f, 'GET', '/api/voces/g-chirp-femenina/muestra', e.tokens.dispositivo)).estado).toBe(503);
+    expect((await pedir(e.f, 'GET', '/api/voces/el-silvana/muestra', e.tokens.dispositivo)).estado).toBe(503);
   });
 
   it('la persona elige voz y velocidad dentro de lo permitido', async () => {
     const base = { nombre: 'Aurora', personalidad: 'Tranquila' };
-    expect((await pedir(e.f, 'PUT', '/api/mi-perfil-companero', e.tokens.dispositivo, { ...base, voz_id: 'el-chilena-flash' })).estado).toBe(400);
+    expect((await pedir(e.f, 'PUT', '/api/mi-perfil-companero', e.tokens.dispositivo, { ...base, voz_id: 'g-chirp-femenina' })).estado).toBe(400);
     expect((await pedir(e.f, 'PUT', '/api/mi-perfil-companero', e.tokens.dispositivo, { ...base, velocidad_voz: 2 })).estado).toBe(400);
-    expect((await pedir(e.f, 'PUT', '/api/mi-perfil-companero', e.tokens.dispositivo, { ...base, voz_id: 'g-chirp-grave', velocidad_voz: 0.85 })).estado).toBe(200);
+    expect((await pedir(e.f, 'PUT', '/api/mi-perfil-companero', e.tokens.dispositivo, { ...base, voz_id: 'el-martin', velocidad_voz: 0.85 })).estado).toBe(200);
     const r = await pedir<{ perfil: { voz_id: string; velocidad_voz: number } }>(e.f, 'GET', '/api/mi-perfil-companero', e.tokens.dispositivo);
-    expect(r.datos.perfil).toMatchObject({ voz_id: 'g-chirp-grave', velocidad_voz: 0.85 });
+    expect(r.datos.perfil).toMatchObject({ voz_id: 'el-martin', velocidad_voz: 0.85 });
   });
 });
 

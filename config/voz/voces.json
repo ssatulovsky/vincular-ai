@@ -1,15 +1,136 @@
 {
-  "descripcion": "Catálogo de voces. 'ofrecidas' son las 3 que la persona elige en el onboarding (decidir con la prueba ciega). Las voces de ElevenLabs necesitan un voice_id: búsquelas con `npm run voz:voces -- --acento chilean` y agréguelas a 'Mis voces' en elevenlabs.io. Google no tiene voces es-CL: Chirp 3 HD usa es-US; Gemini-TTS acepta una instrucción de acento.",
-  "ofrecidas": ["g-chirp-femenina", "g-chirp-masculina", "g-chirp-grave"],
-  "porDefecto": "g-chirp-femenina",
+  "descripcion": "Catálogo de voces. 'ofrecidas' son las que la persona puede elegir al diseñar su compañero (se filtran por género y edad en la pantalla de diseño). Las de ElevenLabs deben estar en 'Mis voces' de la cuenta. Selección inicial del 17-11-2026, a validar con personas mayores en una prueba ciega del co-diseño. Google no tiene voces es-CL: Chirp 3 HD usa es-US; Gemini-TTS acepta una instrucción de acento.",
+  "ofrecidas": [
+    "el-silvana",
+    "el-javiera",
+    "el-paulina",
+    "el-carlos",
+    "el-martin",
+    "el-ivan"
+  ],
+  "porDefecto": "el-silvana",
   "voces": [
-    { "id": "g-chirp-femenina", "proveedor": "google", "motor": "chirp3hd", "voz": "es-US-Chirp3-HD-Aoede", "idioma": "es-US", "nombre": "Aurora", "descripcion": "Google Chirp 3 HD, femenina, español de EE. UU.", "genero": "femenina" },
-    { "id": "g-chirp-masculina", "proveedor": "google", "motor": "chirp3hd", "voz": "es-US-Chirp3-HD-Puck", "idioma": "es-US", "nombre": "Pablo", "descripcion": "Google Chirp 3 HD, masculina, español de EE. UU.", "genero": "masculina" },
-    { "id": "g-chirp-grave", "proveedor": "google", "motor": "chirp3hd", "voz": "es-US-Chirp3-HD-Charon", "idioma": "es-US", "nombre": "Carlos", "descripcion": "Google Chirp 3 HD, masculina grave", "genero": "masculina", "grave": true },
-    { "id": "g-gemini-femenina", "proveedor": "google", "motor": "gemini", "voz": "Kore", "idioma": "es-419", "nombre": "Clara", "descripcion": "Gemini-TTS con instrucción de acento chileno", "genero": "femenina", "estilo": "Habla en español de Chile, con acento chileno suave, cálida, pausada y clara, como una persona adulta que conversa con cariño y respeto con una vecina mayor. Sin apuro." },
-    { "id": "g-gemini-masculina", "proveedor": "google", "motor": "gemini", "voz": "Charon", "idioma": "es-419", "nombre": "Tomás", "descripcion": "Gemini-TTS con instrucción de acento chileno, grave", "genero": "masculina", "grave": true, "estilo": "Habla en español de Chile, con acento chileno suave, voz tranquila y cercana, pausada y clara, como un adulto que conversa con respeto con un vecino mayor. Sin apuro." },
-    { "id": "el-chilena-turbo", "proveedor": "elevenlabs", "motor": "eleven_v4_turbo", "voz": "PENDIENTE", "idioma": "es", "nombre": "Valentina", "descripcion": "ElevenLabs v4 Turbo con una voz chilena de la biblioteca (completar voice_id)", "genero": "femenina" },
-    { "id": "el-chileno-turbo", "proveedor": "elevenlabs", "motor": "eleven_v4_turbo", "voz": "PENDIENTE", "idioma": "es", "nombre": "Andrés", "descripcion": "ElevenLabs v4 Turbo con una voz chilena de la biblioteca (completar voice_id)", "genero": "masculina" },
-    { "id": "el-chilena-flash", "proveedor": "elevenlabs", "motor": "eleven_flash_v2_5", "voz": "PENDIENTE", "idioma": "es", "nombre": "Valentina (Flash)", "descripcion": "Misma voz que el-chilena-turbo con el modelo más barato y rápido", "genero": "femenina" }
+    {
+      "id": "g-chirp-femenina",
+      "proveedor": "google",
+      "motor": "chirp3hd",
+      "voz": "es-US-Chirp3-HD-Aoede",
+      "idioma": "es-US",
+      "nombre": "Aurora",
+      "descripcion": "Google Chirp 3 HD, femenina, español de EE. UU.",
+      "genero": "femenina"
+    },
+    {
+      "id": "g-chirp-masculina",
+      "proveedor": "google",
+      "motor": "chirp3hd",
+      "voz": "es-US-Chirp3-HD-Puck",
+      "idioma": "es-US",
+      "nombre": "Pablo",
+      "descripcion": "Google Chirp 3 HD, masculina, español de EE. UU.",
+      "genero": "masculina"
+    },
+    {
+      "id": "g-chirp-grave",
+      "proveedor": "google",
+      "motor": "chirp3hd",
+      "voz": "es-US-Chirp3-HD-Charon",
+      "idioma": "es-US",
+      "nombre": "Carlos",
+      "descripcion": "Google Chirp 3 HD, masculina grave",
+      "genero": "masculina",
+      "grave": true
+    },
+    {
+      "id": "g-gemini-femenina",
+      "proveedor": "google",
+      "motor": "gemini",
+      "voz": "Kore",
+      "idioma": "es-419",
+      "nombre": "Clara",
+      "descripcion": "Gemini-TTS con instrucción de acento chileno",
+      "genero": "femenina",
+      "estilo": "Habla en español de Chile, con acento chileno suave, cálida, pausada y clara, como una persona adulta que conversa con cariño y respeto con una vecina mayor. Sin apuro."
+    },
+    {
+      "id": "g-gemini-masculina",
+      "proveedor": "google",
+      "motor": "gemini",
+      "voz": "Charon",
+      "idioma": "es-419",
+      "nombre": "Tomás",
+      "descripcion": "Gemini-TTS con instrucción de acento chileno, grave",
+      "genero": "masculina",
+      "grave": true,
+      "estilo": "Habla en español de Chile, con acento chileno suave, voz tranquila y cercana, pausada y clara, como un adulto que conversa con respeto con un vecino mayor. Sin apuro."
+    },
+    {
+      "id": "el-silvana",
+      "proveedor": "elevenlabs",
+      "motor": "eleven_v4_turbo",
+      "voz": "PFIHlfMr2oOjR5RKVg2N",
+      "idioma": "es",
+      "nombre": "Silvana",
+      "descripcion": "Chilena, adulta; cálida, clara y expresiva",
+      "genero": "femenina",
+      "edad": "adulta"
+    },
+    {
+      "id": "el-javiera",
+      "proveedor": "elevenlabs",
+      "motor": "eleven_v4_turbo",
+      "voz": "uQKt669VHGzAA4LAJAaT",
+      "idioma": "es",
+      "nombre": "Javiera",
+      "descripcion": "Chilena; calma, clara y conversacional, tono parejo",
+      "genero": "femenina",
+      "edad": "joven"
+    },
+    {
+      "id": "el-paulina",
+      "proveedor": "elevenlabs",
+      "motor": "eleven_v4_turbo",
+      "voz": "nU2Od41FnF7WAvt16wiO",
+      "idioma": "es",
+      "nombre": "Paulina",
+      "descripcion": "Chilena; cálida y tranquila",
+      "genero": "femenina",
+      "edad": "joven"
+    },
+    {
+      "id": "el-carlos",
+      "proveedor": "elevenlabs",
+      "motor": "eleven_v4_turbo",
+      "voz": "zwsW3KvGYEC2nBc7rlnA",
+      "idioma": "es",
+      "nombre": "Carlos",
+      "descripcion": "Chileno, adulto; amable y cercano",
+      "genero": "masculina",
+      "edad": "adulta"
+    },
+    {
+      "id": "el-martin",
+      "proveedor": "elevenlabs",
+      "motor": "eleven_v4_turbo",
+      "voz": "0mAmJOs5QSoLsncK0QRu",
+      "idioma": "es",
+      "nombre": "Martín",
+      "descripcion": "Chileno, adulto maduro; grave, calmo y sin apuro",
+      "genero": "masculina",
+      "edad": "adulta",
+      "grave": true
+    },
+    {
+      "id": "el-ivan",
+      "proveedor": "elevenlabs",
+      "motor": "eleven_v4_turbo",
+      "voz": "aI9919Z6KR2NIkiqeIWg",
+      "idioma": "es",
+      "nombre": "Iván",
+      "descripcion": "Chileno, voz de persona mayor; cálida y reflexiva",
+      "genero": "masculina",
+      "edad": "mayor",
+      "grave": true
+    }
   ]
 }

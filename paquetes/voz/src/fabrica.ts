@@ -15,6 +15,8 @@ export const esquemaVoz = z.object({
   descripcion: z.string().max(300).optional(),
   genero: z.enum(['femenina', 'masculina']).optional(),
   grave: z.boolean().optional(),
+  /** Edad aparente de la voz, para filtrar en el diseño del compañero. */
+  edad: z.enum(['joven', 'adulta', 'mayor']).optional(),
 });
 
 export const esquemaCatalogoVoces = z.object({
