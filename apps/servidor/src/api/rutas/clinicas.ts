@@ -46,9 +46,9 @@ export const rutasClinicas =
       const q = z.object({ pendientes: z.enum(['true', 'false']).default('true') }).parse(req.query);
       // El administrador no tiene asignaciones, así que no ve alertas.
       const verTodas = actor.rol === 'guardia';
-      const r = await app.bd.query(
-        `SELECT e.id, e.persona_id, e.sesion_id, e.nivel, e.fuente, e.categorias, e.accion, e.creado_en, e.acusado_en, e.acusado_por
-           FROM evento_riesgo e
+      const r = await app.bd.query<{ nombre_cifrado: Buffer } & Record<string, unknown>>(
+        `SELECT e.id, e.persona_id, e.sesion_id, e.nivel, e.fuente, e.categorias, e.accion, e.creado_en, e.acusado_en, e.acusado_por, p.nombre_cifrado
+           FROM evento_riesgo e JOIN persona p ON p.id = e.persona_id
           WHERE e.nivel >= 2
             AND ($1 OR EXISTS (SELECT 1 FROM asignacion_personal a WHERE a.persona_id = e.persona_id AND a.cuenta_id = $2))
             AND ($3 = false OR e.acusado_en IS NULL)
@@ -56,7 +56,8 @@ export const rutasClinicas =
           LIMIT 200`,
         [verTodas, actor.id, q.pendientes === 'true'],
       );
-      return { alertas: r.rows };
+      // El nombre, para que la guardia sepa a quién llamar; el fragmento sigue solo en el detalle.
+      return { alertas: r.rows.map(({ nombre_cifrado, ...a }) => ({ ...a, persona_nombre: app.cifrador.descifrar(nombre_cifrado) })) };
     });
 
     f.get('/api/alertas/:id', async (req) => {

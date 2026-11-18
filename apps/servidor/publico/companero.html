@@ -521,6 +521,9 @@
     mostrar('elegir-persona');
     try {
       const r = await (await api('GET', '/api/mis-personas')).json();
+      // Desde la ficha del panel: /companero?persona=<id> abre directo el diseño de esa persona.
+      const pedida = new URLSearchParams(location.search).get('persona');
+      if (pedida && r.personas.some((p) => p.id === pedida)) { personaId = pedida; return empezar(); }
       $('lista-personas').replaceChildren(...r.personas.map((p) => {
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'opcion';

@@ -11,7 +11,7 @@ const familiar: Actor = { tipo: 'familiar', id: 'f', contactoId: 'k', personaId:
 const tablet: Actor = { tipo: 'dispositivo', id: 'd', personaId: P };
 
 const TODAS: Accion[] = [
-  'cuenta.crear', 'persona.crear', 'persona.ver_ficha', 'dispositivo.crear', 'asignacion.gestionar', 'perfil_companero.editar',
+  'cuenta.crear', 'persona.crear', 'persona.ver_ficha', 'persona.ver_datos', 'persona.editar', 'dispositivo.crear', 'asignacion.gestionar', 'perfil_companero.editar',
   'plan.leer', 'plan.editar', 'alertas.leer', 'alertas.acusar', 'transcripcion.leer', 'resumen_bienestar.leer', 'conversacion.usar',
   'memoria.propia', 'memoria.ver', 'costos.ver', 'medicacion.gestionar', 'salud.propia', 'hoja_control.ver', 'protocolo.gestionar',
 ];
@@ -77,6 +77,19 @@ describe('permisos', () => {
     const admin = personal('admin_plataforma');
     for (const a of ['cuenta.crear', 'persona.crear', 'dispositivo.crear', 'asignacion.gestionar', 'perfil_companero.editar'] as Accion[]) expect(decidirPermiso(admin, a, P, noAsignado), a).toBe(true);
     for (const a of ['plan.leer', 'plan.editar', 'alertas.leer', 'transcripcion.leer', 'persona.ver_ficha'] as Accion[]) expect(decidirPermiso(admin, a, P, asignado), a).toBe(false);
+  });
+
+  it('los datos administrativos los ven el administrador y los clínicos asignados; solo el administrador los edita', () => {
+    expect(decidirPermiso(personal('admin_plataforma'), 'persona.ver_datos', P, noAsignado)).toBe(true);
+    expect(decidirPermiso(personal('admin_plataforma'), 'persona.editar', P, noAsignado)).toBe(true);
+    for (const rol of ['supervisor_clinico', 'enfermera_enlace', 'gerontologo'] as const) {
+      expect(decidirPermiso(personal(rol), 'persona.ver_datos', P, asignado), rol).toBe(true);
+      expect(decidirPermiso(personal(rol), 'persona.ver_datos', P, noAsignado), rol).toBe(false);
+      expect(decidirPermiso(personal(rol), 'persona.editar', P, asignado), rol).toBe(false);
+    }
+    expect(decidirPermiso(personal('guardia'), 'persona.ver_datos', P, noAsignado)).toBe(false);
+    expect(decidirPermiso(familiar, 'persona.ver_datos', P, noAsignado)).toBe(false);
+    expect(decidirPermiso(tablet, 'persona.editar', P, noAsignado)).toBe(false);
   });
 
   it('solo el supervisor asignado edita el plan y abre transcripciones', () => {
