@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:riesgo": "vitest run --project seguridad-clinica",
     "riesgo:evaluar": "npm run riesgo:evaluar -w @vincular/servidor",
+    "guardian:evaluar": "npm run guardian:evaluar -w @vincular/servidor",
     "ia:modelos": "npm run ia:modelos -w @vincular/servidor",
     "db:migrar": "npm run db:migrar -w @vincular/servidor",
     "dev": "npm run dev -w @vincular/servidor",

@@ -12,6 +12,7 @@
     "cli:crear-cuenta": "tsx src/cli/crearCuenta.ts",
     "cli:alta-prueba": "tsx src/cli/altaPrueba.ts",
     "riesgo:evaluar": "tsx src/cli/evaluarRiesgo.ts",
+    "guardian:evaluar": "tsx src/cli/evaluarGuardian.ts",
     "ia:modelos": "tsx src/cli/listarModelos.ts",
     "memoria:procesar": "tsx src/cli/procesarMemoria.ts",
     "costos:reporte": "tsx src/cli/reporteCostos.ts",
