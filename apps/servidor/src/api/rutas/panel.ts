@@ -4,7 +4,8 @@ import { transaccion } from '../../db/conexion.ts';
 import { normalizarTelefono } from '../../escalamiento/telefonos.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
 import { exigirPermiso } from '../../seguridad/permisos.ts';
-import { ErrorHttp, exigirActor, type Aplicacion } from '../servidor.ts';
+import { generarInformeSesion, leerInforme } from '../../informes/sesion.ts';
+import { ErrorHttp, enSegundoPlano, exigirActor, type Aplicacion } from '../servidor.ts';
 
 const uuid = z.string().uuid();
 const ESTADOS = ['onboarding', 'activa', 'pausada', 'baja'] as const;
@@ -331,6 +332,38 @@ export const rutasPanel =
         [id],
       );
       return { sesiones: r.rows };
+    });
+
+    /** Resumen de sesión para el equipo clínico asignado. Las lecturas teóricas son solo para profesionales. */
+    f.get('/api/personas/:id/sesiones/:sesionId/informe', async (req) => {
+      const actor = exigirPersonal(req);
+      const { id, sesionId } = z.object({ id: uuid, sesionId: uuid }).parse(req.params);
+      await exigirPermiso(app.bd, actor, 'persona.ver_ficha', id);
+      const s = await app.bd.query<{ informe_intentos: number; informe_ultimo_error: string | null }>(
+        'SELECT informe_intentos, informe_ultimo_error FROM sesion_conversacion WHERE id = $1 AND persona_id = $2',
+        [sesionId, id],
+      );
+      if (!s.rows[0]) throw new ErrorHttp(404, 'Sesión inexistente');
+      const informe = await leerInforme(app.bd, app.cifrador, sesionId);
+      if (informe) await auditar(app.bd, actor, { accion: 'informe_sesion.leer', recursoTipo: 'sesion_conversacion', recursoId: sesionId, personaId: id });
+      return { informe, intentosFallidos: s.rows[0].informe_intentos, ultimoError: s.rows[0].informe_ultimo_error };
+    });
+
+    /** El supervisor pide generarlo de nuevo (p. ej. si quedó rechazado o el proveedor falló). */
+    f.post('/api/personas/:id/sesiones/:sesionId/informe/regenerar', async (req, reply) => {
+      const actor = exigirPersonal(req);
+      const { id, sesionId } = z.object({ id: uuid, sesionId: uuid }).parse(req.params);
+      await exigirPermiso(app.bd, actor, 'plan.editar', id);
+      const s = await app.bd.query<{ estado: string | null }>(
+        'SELECT (SELECT estado_validacion FROM informe_sesion WHERE sesion_id = s.id) AS estado FROM sesion_conversacion s WHERE s.id = $1 AND s.persona_id = $2',
+        [sesionId, id],
+      );
+      if (!s.rows[0]) throw new ErrorHttp(404, 'Sesión inexistente');
+      if (s.rows[0].estado === 'valido') throw new ErrorHttp(409, 'El resumen ya es válido');
+      await app.bd.query('UPDATE sesion_conversacion SET informe_intentos = 0, informe_ultimo_error = NULL WHERE id = $1', [sesionId]);
+      await auditar(app.bd, actor, { accion: 'informe_sesion.regenerar', recursoTipo: 'sesion_conversacion', recursoId: sesionId, personaId: id });
+      enSegundoPlano(app, 'informe', () => generarInformeSesion({ bd: app.bd, cifrador: app.cifrador, modelos: app.modelos }, sesionId, { forzar: true }));
+      return reply.code(202).send({ enCurso: true });
     });
 
     f.get('/api/personas/:id/plan-terapeutico/versiones', async (req) => {

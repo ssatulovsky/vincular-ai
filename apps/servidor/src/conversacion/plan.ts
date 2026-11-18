@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LENTES_DESACTIVABLES } from '../informes/lentes.ts';
 import { esNivelRiesgo, type UmbralPersonal } from '@vincular/seguridad-clinica';
 import type { Cliente, Consultable } from '../db/conexion.ts';
 import type { Cifrador } from '../seguridad/cifrado.ts';
@@ -32,6 +33,8 @@ export const esquemaPlan = z.object({
     .default([]),
   no_mencionar: z.array(z.string().min(2).max(80)).max(30).default([]),
   proxima_revision: z.string().date().nullable().default(null),
+  // Lentes teóricas que el supervisor desactivó para este caso (la transferencia no se desactiva).
+  lentes_desactivadas: z.array(z.enum(LENTES_DESACTIVABLES as [string, ...string[]])).max(20).default([]),
 });
 
 export type PlanTerapeutico = z.infer<typeof esquemaPlan>;
