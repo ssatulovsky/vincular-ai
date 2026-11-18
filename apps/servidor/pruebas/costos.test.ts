@@ -9,7 +9,11 @@ beforeAll(async () => {
 });
 afterAll(async () => e?.cerrar());
 
-const precios: TablaPrecios = { verificadoEn: '2026-11-12', precios: { 'gemini/modelo-a': { entradaUsdPorMillon: 1, salidaUsdPorMillon: 4 } } };
+const precios: TablaPrecios = {
+  verificadoEn: '2026-11-12',
+  precios: { 'gemini/modelo-a': { entradaUsdPorMillon: 1, salidaUsdPorMillon: 4 } },
+  porMinuto: { 'lemonslice/avatar': { usdPorMinuto: 0.2 } },
+};
 
 describe('costos', () => {
   it('calcula el costo por millón de tokens y devuelve null sin precio', () => {
@@ -45,6 +49,22 @@ describe('costos', () => {
     const conFaltante = await costosDelMes(e.app.bd, precios, '2030-03');
     expect(conFaltante.total.usd).toBeNull();
     expect(conFaltante.total.modelosSinPrecio).toEqual(['gemini/sin-precio']);
+  });
+
+  it('suma los minutos de avatar animado por persona, aparte de los modelos', async () => {
+    const s = await abrirSesion(e.app.bd, e.ids.personaAjena, null, 'persona', 'voz');
+    await e.owner.query(
+      `INSERT INTO uso_avatar (persona_id, sesion_id, proveedor, inicio, fin) VALUES ($1, $2, 'lemonslice', '2030-05-10T12:00:00-04:00', '2030-05-10T12:15:00-04:00'), ($1, $2, 'lemonslice', '2030-05-11T09:00:00-04:00', '2030-05-11T09:05:00-04:00')`,
+      [e.ids.personaAjena, s],
+    );
+    const r = await costosDelMes(e.app.bd, precios, '2030-05');
+    const p = r.personas.find((x) => x.personaId === e.ids.personaAjena)!;
+    expect(p.avatar.minutos).toBe(20);
+    expect(p.avatar.usd).toBeCloseTo(4);
+    expect(r.total.avatar.usd).toBeCloseTo(4);
+    // Sin precio configurado para el avatar: minutos sí, costo null (no se inventa).
+    const sinPrecio = await costosDelMes(e.app.bd, { ...precios, porMinuto: {} }, '2030-05');
+    expect(sinPrecio.total.avatar).toEqual({ minutos: 20, usd: null });
   });
 
   it('solo el administrador consulta los costos', async () => {
