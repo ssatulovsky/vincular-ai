@@ -11,7 +11,7 @@ import type { ConfigTwilio } from '../escalamiento/twilio.ts';
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 const proveedor = z.enum(['gemini', 'anthropic']);
-const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings', 'imagenes'];
+const TAREAS: Tarea[] = ['conversacion', 'conversacion_respaldo', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings', 'imagenes'];
 
 const esquemaEntornoVoz = z.object({
   VOZ_CATALOGO: z.string().default(path.join(RAIZ, 'config/voz/voces.json')),
@@ -114,8 +114,9 @@ const esquemaProtocolo = z.object({
  * riesgo y el guardián quedan con el del modelo (criterio conservador). IA_RAZONAMIENTO_<TAREA>
  * lo cambia; "predeterminado" no envía nada.
  */
-const RAZONAMIENTO_POR_DEFECTO: Partial<Record<Tarea, 'low' | 'medium' | 'high'>> = { conversacion: 'low' };
-const TIMEOUT_POR_DEFECTO: Record<Tarea, number> = { conversacion: 30_000, guardian: 10_000, riesgo: 10_000, extraccion: 30_000, informes: 120_000, embeddings: 15_000, imagenes: 90_000 };
+const RAZONAMIENTO_POR_DEFECTO: Partial<Record<Tarea, 'low' | 'medium' | 'high'>> = { conversacion: 'low', conversacion_respaldo: 'low' };
+// La conversación se espera poco: si el modelo principal se demora, responde el de respaldo.
+const TIMEOUT_POR_DEFECTO: Record<Tarea, number> = { conversacion: 15_000, conversacion_respaldo: 10_000, guardian: 10_000, riesgo: 10_000, extraccion: 30_000, informes: 120_000, embeddings: 15_000, imagenes: 90_000 };
 
 export interface Config {
   entorno: 'development' | 'test' | 'production';
@@ -189,6 +190,13 @@ export function cargarConfig(entornoOriginal: NodeJS.ProcessEnv = process.env): 
       timeoutMs: v.data.timeoutMs ?? TIMEOUT_POR_DEFECTO[t],
       ...(razonamiento && razonamiento !== 'predeterminado' ? { razonamiento } : {}),
     };
+  }
+
+  // Respaldo de la conversación: si no se configuró, usa el modelo rápido del guardián.
+  if (!tareas.conversacion_respaldo.modelo && tareas.guardian.modelo) {
+    tareas.conversacion_respaldo = { ...tareas.conversacion_respaldo, proveedor: tareas.guardian.proveedor, modelo: tareas.guardian.modelo };
+    const i = tareasSinModelo.indexOf('conversacion_respaldo');
+    if (i >= 0) tareasSinModelo.splice(i, 1);
   }
 
   const protocolo = esquemaProtocolo.parse(JSON.parse(readFileSync(e.PROTOCOLO_EMERGENCIA, 'utf8')));

@@ -236,10 +236,17 @@ export class Orquestador {
     for (let intento = 1; intento <= 2; intento++) {
       let texto: string;
       try {
-        texto = await this.generar(e, instrucciones + correccion);
+        texto = await this.generar(e, instrucciones + correccion, 'conversacion');
       } catch (error) {
-        await this.registrarIntervencion(e, intento, 'proveedor', ['proveedor_no_disponible'], [error instanceof ErrorProveedor ? 'proveedor.error' : 'generacion.error'], null, 'respuesta_segura');
-        return segura(true);
+        // El modelo principal falló o se demoró: un intento con el de respaldo (más rápido) antes
+        // de la respuesta segura. Su respuesta pasa igual por el guardián.
+        try {
+          texto = await this.generar(e, instrucciones + correccion, 'conversacion_respaldo');
+        } catch (errorRespaldo) {
+          const codigo = (err: unknown) => (err instanceof ErrorProveedor ? 'proveedor.error' : 'generacion.error');
+          await this.registrarIntervencion(e, intento, 'proveedor', ['proveedor_no_disponible'], [codigo(error), `respaldo.${codigo(errorRespaldo)}`], null, 'respuesta_segura');
+          return segura(true);
+        }
       }
       const rev = await revisarRespuesta(this.d.bd, this.d.modelos, e.ambito, texto, {
         terminosProhibidos: e.plan?.no_mencionar ?? [],
@@ -266,7 +273,7 @@ export class Orquestador {
   }
 
   /** Llamada al modelo de conversación con el bucle de herramientas. */
-  private async generar(e: EstadoTurno, instrucciones: string): Promise<string> {
+  private async generar(e: EstadoTurno, instrucciones: string, tarea: 'conversacion' | 'conversacion_respaldo'): Promise<string> {
     const mensajes: MensajeModelo[] = e.historial.map((t) => (t.hablante === 'persona' ? { rol: 'usuario', texto: t.texto } : { rol: 'asistente', texto: t.texto }));
     if (mensajes[0]?.rol === 'asistente') mensajes.unshift({ rol: 'usuario', texto: '(La conversación la inició el compañero.)' });
     mensajes.push({ rol: 'usuario', texto: e.texto });
@@ -286,7 +293,7 @@ export class Orquestador {
     };
 
     for (let paso = 0; paso <= MAX_PASOS_HERRAMIENTAS; paso++) {
-      const r = await llamarModelo(this.d.bd, this.d.modelos, 'conversacion', e.ambito, {
+      const r = await llamarModelo(this.d.bd, this.d.modelos, tarea, e.ambito, {
         instrucciones,
         mensajes,
         herramientas: ESPECIFICACIONES,

@@ -26,10 +26,11 @@ describe('bucle conversacional', () => {
     expect(r.datos.respuesta).toMatch(/problema para pensar/);
     const t = await e.owner.query(`SELECT origen FROM turno WHERE sesion_id = $1 AND hablante = 'agente'`, [sesionId]);
     expect(t.rows).toEqual([{ origen: 'respuesta_segura' }]);
-    const g = await e.owner.query('SELECT etapa, accion FROM intervencion_guardian WHERE sesion_id = $1', [sesionId]);
-    expect(g.rows).toEqual([{ etapa: 'proveedor', accion: 'respuesta_segura' }]);
+    const g = await e.owner.query('SELECT etapa, accion, reglas FROM intervencion_guardian WHERE sesion_id = $1', [sesionId]);
+    expect(g.rows).toEqual([{ etapa: 'proveedor', accion: 'respuesta_segura', reglas: ['proveedor.error', 'respaldo.proveedor.error'] }]);
+    // Antes de la respuesta segura se intentó con el modelo de respaldo.
     const u = await e.owner.query(`SELECT tarea, ok FROM uso_modelo WHERE sesion_id = $1 ORDER BY tarea`, [sesionId]);
-    expect(u.rows).toEqual(expect.arrayContaining([{ tarea: 'conversacion', ok: false }, { tarea: 'riesgo', ok: false }]));
+    expect(u.rows).toEqual(expect.arrayContaining([{ tarea: 'conversacion', ok: false }, { tarea: 'conversacion_respaldo', ok: false }, { tarea: 'riesgo', ok: false }]));
   });
 
   it('nivel 3 por reglas: protocolo de emergencia sin esperar al modelo, evento registrado con el fragmento literal', async () => {
