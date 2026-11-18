@@ -439,8 +439,10 @@
     async contactos(z, f) {
       const lista = f.contactos.length ? h('ul', { class: 'lista-simple' }, f.contactos.map((k) => h('li', {},
         h('div', {}, h('strong', {}, k.nombre), ` (${k.relacion})`, h('br'), h('span', { class: 'suave' }, [k.telefono ?? 'sin teléfono', k.esCuidador ? 'cuidador/a' : null, k.prioridadEmergencia ? `prioridad ${k.prioridadEmergencia} en emergencias` : null].filter(Boolean).join(' · ')),
-          h('br'), h('span', { class: 'suave' }, 'Puede ver: ', permisosTexto(k.permisos))),
+          h('br'), h('span', { class: 'suave' }, 'Puede ver: ', permisosTexto(k.permisos)),
+          h('br'), h('span', { class: 'suave' }, k.accesoFamiliar ? `Acceso a la página familiar: ${k.accesoFamiliar}` : 'Sin acceso a la página familiar')),
         h('div', { class: 'acciones', style: 'margin:0' },
+          k.accesoFamiliar ? null : h('button', { class: 'boton sec chico', type: 'button', onclick: () => darAccesoFamiliar(f, k) }, 'Dar acceso familiar'),
           h('button', { class: 'boton sec chico', type: 'button', onclick: () => editarContacto(f, k) }, 'Editar'),
           h('button', { class: 'boton peligro chico', type: 'button', onclick: () => bajaContacto(f, k) }, 'Dar de baja'))))) : h('div', { class: 'vacio' }, 'Sin contactos. Agregue al menos un cuidador con teléfono: las alertas lo necesitan.');
       z.replaceChildren(h('div', { class: 'bloque' }, h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Contactos'), h('button', { class: 'boton', type: 'button', onclick: () => editarContacto(f, null) }, 'Agregar contacto')),
@@ -489,7 +491,7 @@
 
     // Clínico
     async resumen(z, f) {
-      const [{ sesiones }, { alertas }] = await Promise.all([api('GET', `/api/personas/${f.id}/sesiones`), api('GET', '/api/alertas?pendientes=false')]);
+      const [{ sesiones }, { alertas }, { propuestas }] = await Promise.all([api('GET', `/api/personas/${f.id}/sesiones`), api('GET', '/api/alertas?pendientes=false'), api('GET', `/api/personas/${f.id}/propuestas`)]);
       const propias = alertas.filter((a) => a.persona_id === f.id);
       const filasAlertas = propias.map((a) => h('tr', { class: a.acusado_en ? null : 'pendiente' },
         h('td', {}, h('span', { class: 'nivel', dataset: { n: String(a.nivel) } }, `Nivel ${a.nivel}`)), h('td', {}, fechaHora(a.creado_en)), h('td', {}, senales(a.categorias)),
@@ -502,7 +504,23 @@
             : s.informe === 'rechazado' ? h('button', { class: 'boton sec chico', type: 'button', onclick: () => verInforme(f, s) }, 'Resumen no validado')
             : h('span', { class: 'suave' }, s.turnos ? 'Resumen en preparación' : 'Sin conversación'),
           esSupervisor() && s.turnos ? h('button', { class: 'boton sec chico', type: 'button', onclick: () => abrirTranscripcion(f, s) }, 'Abrir transcripción') : null))));
+      const revisar = (p, estado) => dialogo(estado === 'aceptada' ? 'Aceptar propuesta' : 'Descartar propuesta', [
+        h('p', {}, `«${p.texto}» — ${p.de}`),
+        ...campo('pr-resp', 'Respuesta para la familia (opcional)', { multilinea: true, maxlength: 500, placeholder: estado === 'aceptada' ? 'Lo vamos a incorporar en las conversaciones de esta semana.' : '' }),
+        estado === 'aceptada' ? h('p', { class: 'suave' }, 'Aceptarla no la aplica sola: si corresponde, agréguela al plan terapéutico o como recordatorio.') : null,
+      ], estado === 'aceptada' ? 'Aceptar' : 'Descartar', async () => {
+        await api('PUT', `/api/personas/${f.id}/propuestas/${p.id}`, { estado, ...($('pr-resp').value.trim() ? { respuesta: $('pr-resp').value.trim() } : {}) });
+        ir('ficha', f.id);
+      });
+      const bloquePropuestas = propuestas.length ? h('div', { class: 'bloque' }, h('h2', {}, 'Propuestas de la familia'),
+        h('ul', { class: 'lista-simple' }, propuestas.map((p) => h('li', {},
+          h('div', {}, p.texto, h('br'), h('span', { class: 'suave' }, `${p.de} · ${fecha(p.creadaEn)}${p.estado !== 'pendiente' ? ` · ${p.estado === 'aceptada' ? 'aceptada' : 'descartada'}${p.revisor ? ` por ${p.revisor}` : ''}` : ''}${p.respuesta ? ` · «${p.respuesta}»` : ''}`)),
+          p.estado === 'pendiente' ? h('div', { class: 'acciones', style: 'margin:0' },
+            h('button', { class: 'boton chico', type: 'button', onclick: () => revisar(p, 'aceptada') }, 'Aceptar'),
+            h('button', { class: 'boton sec chico', type: 'button', onclick: () => revisar(p, 'descartada') }, 'Descartar')) : null)))) : null;
+      // replaceChildren escribiría "null": sin propuestas, el bloque no se agrega.
       z.replaceChildren(
+        ...(bloquePropuestas ? [bloquePropuestas] : []),
         h('div', { class: 'bloque' }, h('h2', {}, 'Alertas'), propias.length ? h('table', { class: 'tabla' }, h('thead', {}, h('tr', {}, ['Nivel', 'Cuándo', 'Señales', 'Acuse'].map((x) => h('th', {}, x)))), h('tbody', {}, filasAlertas)) : h('p', { class: 'suave' }, 'Sin alertas de nivel 2 o 3.')),
         h('div', { class: 'bloque' }, h('h2', {}, 'Conversaciones'),
           h('p', { class: 'suave' }, 'Cada conversación genera un resumen para el supervisor: lo observado separado de lo inferido, con citas verificadas contra lo que dijo la persona. La transcripción completa la abre solo el supervisor, con un motivo clínico que queda registrado.'),
@@ -693,6 +711,17 @@
       const tel = $('k-telefono').value.trim(); const pri = $('k-prioridad').value;
       if (k) await api('PUT', `/api/personas/${f.id}/contactos/${k.id}`, { ...cuerpo, telefono: tel || null, prioridadEmergencia: pri ? Number(pri) : null });
       else await api('POST', `/api/personas/${f.id}/contactos`, { ...cuerpo, ...(tel ? { telefono: tel } : {}), ...(pri ? { prioridadEmergencia: Number(pri) } : {}) });
+      ir('ficha', f.id);
+    });
+  }
+  function darAccesoFamiliar(f, k) {
+    dialogo(`Acceso familiar para ${k.nombre}`, [
+      h('p', {}, `Podrá entrar a la página /familia y ver solo lo que ${f.nombre.split(' ')[0]} autorizó: ${permisosTexto(k.permisos)}. Nunca verá conversaciones.`),
+      ...campo('fa-email', 'Correo', { type: 'email', required: true }),
+      ...campo('fa-pass', 'Contraseña inicial', { type: 'password', required: true, minlength: 12, autocomplete: 'new-password' }),
+      h('p', { class: 'suave', style: 'margin-top:8px' }, 'Al menos 12 caracteres. Entréguela en persona o por teléfono, nunca por correo.'),
+    ], 'Crear acceso', async () => {
+      await api('POST', '/api/cuentas', { tipo: 'familiar', email: $('fa-email').value, nombre: k.nombre, contrasena: $('fa-pass').value, contactoId: k.id });
       ir('ficha', f.id);
     });
   }
