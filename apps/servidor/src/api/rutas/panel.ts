@@ -5,6 +5,8 @@ import { normalizarTelefono } from '../../escalamiento/telefonos.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
 import { exigirPermiso } from '../../seguridad/permisos.ts';
 import { generarInformeSesion, leerInforme } from '../../informes/sesion.ts';
+import { evolucion, informesSemanales, SENAL_DEPENDENCIA } from '../../informes/evolucion.ts';
+import { cancelarTamizaje, ErrorTamizaje, iniciarTamizaje, resultadosTamizaje, tamizajesEnCurso } from '../../tamizaje/tamizaje.ts';
 import { ErrorHttp, enSegundoPlano, exigirActor, type Aplicacion } from '../servidor.ts';
 
 const uuid = z.string().uuid();
@@ -53,6 +55,8 @@ export const rutasPanel =
         alertas_pendientes: number;
         ultima_sesion: Date | null;
         nivel_7d: number | null;
+        dependencia: boolean;
+        tamizaje_en_curso: boolean;
       }>(
         `SELECT p.id, p.nombre_cifrado, p.comuna, p.estado, p.fecha_nacimiento, p.consentimiento_vigente_hasta,
                 (SELECT count(*)::int FROM dispositivo d WHERE d.persona_id = p.id AND d.revocado_en IS NULL) AS tablets,
@@ -60,11 +64,13 @@ export const rutasPanel =
                 ARRAY(SELECT c.nombre FROM asignacion_personal a JOIN cuenta c ON c.id = a.cuenta_id WHERE a.persona_id = p.id ORDER BY c.nombre) AS profesionales,
                 (SELECT count(*)::int FROM evento_riesgo e WHERE e.persona_id = p.id AND e.nivel >= 2 AND e.acusado_en IS NULL) AS alertas_pendientes,
                 (SELECT max(s.inicio) FROM sesion_conversacion s WHERE s.persona_id = p.id) AS ultima_sesion,
-                (SELECT max(s.nivel_maximo)::int FROM sesion_conversacion s WHERE s.persona_id = p.id AND s.inicio > now() - interval '7 days') AS nivel_7d
+                (SELECT max(s.nivel_maximo)::int FROM sesion_conversacion s WHERE s.persona_id = p.id AND s.inicio > now() - interval '7 days') AS nivel_7d,
+                EXISTS (SELECT 1 FROM senal x WHERE x.persona_id = p.id AND x.tipo = $3 AND x.medido_en > now() - interval '7 days') AS dependencia,
+                EXISTS (SELECT 1 FROM tamizaje t WHERE t.persona_id = p.id AND t.estado = 'en_curso') AS tamizaje_en_curso
            FROM persona p
           WHERE $1 OR EXISTS (SELECT 1 FROM asignacion_personal a WHERE a.persona_id = p.id AND a.cuenta_id = $2)
           ORDER BY p.creada_en`,
-        [todas, actor.id],
+        [todas, actor.id, SENAL_DEPENDENCIA],
       );
       await auditar(app.bd, actor, { accion: 'persona.listar', recursoTipo: 'persona', recursoId: null, personaId: null, detalle: { cantidad: r.rowCount } });
       return {
@@ -81,7 +87,7 @@ export const rutasPanel =
             ? { consentimientoVigenteHasta: x.consentimiento_vigente_hasta, tablets: x.tablets, ultimoUsoTablet: x.ultimo_uso_tablet, profesionales: x.profesionales }
             : {}),
           // Indicadores clínicos: solo para los clínicos asignados.
-          ...(clinico ? { ultimaSesion: x.ultima_sesion, nivelUltimos7Dias: x.nivel_7d ?? 0 } : {}),
+          ...(clinico ? { ultimaSesion: x.ultima_sesion, nivelUltimos7Dias: x.nivel_7d ?? 0, dependencia: x.dependencia, tamizajeEnCurso: x.tamizaje_en_curso } : {}),
         })),
       };
     });
@@ -364,6 +370,73 @@ export const rutasPanel =
       await auditar(app.bd, actor, { accion: 'informe_sesion.regenerar', recursoTipo: 'sesion_conversacion', recursoId: sesionId, personaId: id });
       enSegundoPlano(app, 'informe', () => generarInformeSesion({ bd: app.bd, cifrador: app.cifrador, modelos: app.modelos }, sesionId, { forzar: true }));
       return reply.code(202).send({ enCurso: true });
+    });
+
+    // ── Evolución, tamizaje y desvíos ────────────────────────────────────────────────
+    f.get('/api/personas/:id/evolucion', async (req) => {
+      const actor = exigirPersonal(req);
+      const { id } = z.object({ id: uuid }).parse(req.params);
+      await exigirPermiso(app.bd, actor, 'persona.ver_ficha', id);
+      const [evo, resultados, enCurso, semanales, desvios] = await Promise.all([
+        evolucion(app.bd, app.cifrador, id),
+        resultadosTamizaje(app.bd, id),
+        tamizajesEnCurso(app.bd, app.cifrador, id),
+        informesSemanales(app.bd, app.cifrador, id),
+        app.bd.query<{ id: string; sesion_id: string; comentario_cifrado: Buffer; creado_en: Date; autor: string }>(
+          'SELECT d.id, d.sesion_id, d.comentario_cifrado, d.creado_en, c.nombre AS autor FROM desvio_agente d JOIN cuenta c ON c.id = d.cuenta_id WHERE d.persona_id = $1 ORDER BY d.creado_en DESC LIMIT 50',
+          [id],
+        ),
+      ]);
+      await auditar(app.bd, actor, { accion: 'evolucion.ver', recursoTipo: 'persona', recursoId: id, personaId: id });
+      return {
+        semanas: evo.semanas.slice(-8),
+        lineaBase: evo.lineaBase,
+        dependencia: evo.dependencia,
+        tamizaje: {
+          resultados,
+          // Sin respuestas ni citas: solo el avance.
+          enCurso: enCurso.map((t) => ({ id: t.id, instrumento: t.instrumento.clave, nombre: t.instrumento.nombre, respondidas: t.instrumento.items.length - t.pendientes.length, total: t.instrumento.items.length, iniciadoEn: t.iniciadoEn })),
+        },
+        semanales,
+        desvios: desvios.rows.map((x) => ({ id: x.id, sesionId: x.sesion_id, comentario: app.cifrador.descifrar(x.comentario_cifrado), creadoEn: x.creado_en, autor: x.autor })),
+      };
+    });
+
+    f.post('/api/personas/:id/tamizajes', async (req, reply) => {
+      const actor = exigirPersonal(req);
+      const { id } = z.object({ id: uuid }).parse(req.params);
+      await exigirPermiso(app.bd, actor, 'plan.editar', id);
+      const { instrumento } = z.object({ instrumento: z.enum(['gds15', 'ucla3']) }).parse(req.body);
+      try {
+        const tid = await iniciarTamizaje(app.bd, app.cifrador, id, instrumento, actor.id);
+        await auditar(app.bd, actor, { accion: 'tamizaje.iniciar', recursoTipo: 'tamizaje', recursoId: tid, personaId: id, detalle: { instrumento } });
+        return reply.code(201).send({ id: tid });
+      } catch (e) {
+        if (e instanceof ErrorTamizaje) throw new ErrorHttp(e.estado, e.message);
+        throw e;
+      }
+    });
+
+    f.post('/api/personas/:id/tamizajes/:tamizajeId/cancelar', async (req) => {
+      const actor = exigirPersonal(req);
+      const { id, tamizajeId } = z.object({ id: uuid, tamizajeId: uuid }).parse(req.params);
+      await exigirPermiso(app.bd, actor, 'plan.editar', id);
+      if (!(await cancelarTamizaje(app.bd, id, tamizajeId))) throw new ErrorHttp(404, 'Tamizaje inexistente o ya terminado');
+      await auditar(app.bd, actor, { accion: 'tamizaje.cancelar', recursoTipo: 'tamizaje', recursoId: tamizajeId, personaId: id });
+      return { ok: true };
+    });
+
+    /** El supervisor marca que el compañero se apartó del plan en una sesión: dato para mejorar el sistema. */
+    f.post('/api/personas/:id/sesiones/:sesionId/desvios', async (req, reply) => {
+      const actor = exigirPersonal(req);
+      const { id, sesionId } = z.object({ id: uuid, sesionId: uuid }).parse(req.params);
+      await exigirPermiso(app.bd, actor, 'plan.editar', id);
+      const { comentario } = z.object({ comentario: z.string().trim().min(10, 'Describa el desvío (al menos 10 caracteres)').max(1000) }).parse(req.body);
+      const s = await app.bd.query('SELECT 1 FROM sesion_conversacion WHERE id = $1 AND persona_id = $2', [sesionId, id]);
+      if (!s.rowCount) throw new ErrorHttp(404, 'Sesión inexistente');
+      const r = await app.bd.query<{ id: string }>('INSERT INTO desvio_agente (persona_id, sesion_id, cuenta_id, comentario_cifrado) VALUES ($1, $2, $3, $4) RETURNING id', [id, sesionId, actor.id, app.cifrador.cifrar(comentario)]);
+      await auditar(app.bd, actor, { accion: 'desvio_agente.marcar', recursoTipo: 'sesion_conversacion', recursoId: sesionId, personaId: id });
+      return reply.code(201).send({ id: r.rows[0]!.id });
     });
 
     f.get('/api/personas/:id/plan-terapeutico/versiones', async (req) => {

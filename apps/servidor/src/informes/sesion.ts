@@ -47,6 +47,18 @@ export const esquemaInformeModelo = z.object({
   observaciones_supervisor: z
     .object({ hipotesis_tentativas: z.array(inferencia).max(6).default([]), temas_pendientes: z.array(z.string().trim().min(2).max(300)).max(8).default([]) })
     .default({ hipotesis_tentativas: [], temas_pendientes: [] }),
+  // Indicadores para el informe semanal: solo si hay una cita de la persona que los sostenga.
+  indicadores: z
+    .object({
+      animo: z.object({ valor: z.number().int().min(-2).max(2), cita: cita }).nullable().default(null),
+      sueno: z.object({ valor: z.enum(['bueno', 'regular', 'malo']), cita: cita }).nullable().default(null),
+      apetito: z.object({ valor: z.enum(['bueno', 'regular', 'malo']), cita: cita }).nullable().default(null),
+      contactos_humanos: z
+        .array(z.object({ tipo: z.enum(['llamada', 'visita', 'salida', 'mensaje', 'actividad']), con_quien: z.string().trim().max(80).default(''), cita: cita }))
+        .max(10)
+        .default([]),
+    })
+    .default({ animo: null, sueno: null, apetito: null, contactos_humanos: [] }),
   lentes: z
     .array(
       z.object({
@@ -77,7 +89,7 @@ export function comparable(t: string): string {
   return t.normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase().replace(/[^a-z0-9ñ]+/g, ' ').trim();
 }
 
-function diagnosticoEn(t: string): string | null {
+export function diagnosticoEn(t: string): string | null {
   const m = comparable(t).match(PATRON_DIAGNOSTICOS);
   return m ? m[0] : null;
 }
@@ -147,6 +159,10 @@ export function validarInforme(bruto: unknown, ctx: ContextoValidacion): Resulta
   });
   inf.observaciones_supervisor.temas_pendientes.forEach((t, i) => sinDiagnostico(`observaciones_supervisor.temas_pendientes[${i}]`, t));
 
+  const ind = inf.indicadores;
+  for (const k of ['animo', 'sueno', 'apetito'] as const) if (ind[k]) verificarCitas(`indicadores.${k}`, [ind[k]!.cita]);
+  ind.contactos_humanos.forEach((x, i) => verificarCitas(`indicadores.contactos_humanos[${i}]`, [x.cita]));
+
   inf.lentes.forEach((l, i) => {
     const donde = `lentes[${i}]`;
     if (!(CLAVES_LENTES as readonly string[]).includes(l.lente)) errores.push(`${donde}: la lente «${l.lente}» no existe`);
@@ -185,7 +201,10 @@ Puntos del resumen:
 7. riesgo: justifica el nivel que el sistema asignó (te lo damos); no lo cambies.
 8. intervenciones: lo que hizo el compañero (reminiscencia, activación conductual, validación, sugerir llamar a alguien…) y cómo respondió la persona.
 9. observaciones_supervisor: hipótesis tentativas y temas para retomar la próxima vez.
-10. lentes: lecturas teóricas para el profesional, solo con las lentes activas:
+10. indicadores (para seguir tendencias semana a semana), cada uno SOLO si una frase de la persona lo sostiene; si no, null:
+   animo: -2 muy bajo, -1 bajo, 0 neutro, 1 bueno, 2 muy bueno. sueno y apetito: bueno, regular o malo.
+   contactos_humanos: contactos con otras personas que ella cuenta haber tenido (llamada, visita, salida, mensaje, actividad), no los que planea.
+11. lentes: lecturas teóricas para el profesional, solo con las lentes activas:
 ${listaLentes}
    Cada señalamiento nombra el concepto, se apoya en al menos una cita literal y es una hipótesis, nunca una conclusión.
    tipo "observacion": material de esta sesión. tipo "lectura": solo si el mismo patrón aparece en al menos 2 sesiones previas de las que te damos; indica sus ids en sesiones_previas.
@@ -198,6 +217,7 @@ Responde SOLO con JSON con esta forma:
  "riesgo":{"justificacion":""},
  "intervenciones":[{"tipo":"","descripcion":"","respuesta_persona":"","citas":[]}],
  "observaciones_supervisor":{"hipotesis_tentativas":[{"texto":"","citas":[]}],"temas_pendientes":[""]},
+ "indicadores":{"animo":{"valor":0,"cita":""},"sueno":null,"apetito":null,"contactos_humanos":[{"tipo":"llamada","con_quien":"","cita":""}]},
  "lentes":[{"lente":"<clave>","concepto":"","senalamiento":"","citas":[""],"tipo":"observacion","sesiones_previas":[]}]}`;
 }
 

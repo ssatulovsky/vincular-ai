@@ -2,6 +2,7 @@ import type { Aplicacion } from './api/servidor.ts';
 import { cicloMedicacion } from './medicacion/agenda.ts';
 import { procesarPendientes } from './memoria/extraccion.ts';
 import { generarInformesPendientes } from './informes/sesion.ts';
+import { generarInformesSemanales } from './informes/evolucion.ts';
 import { cicloEscalamiento } from './escalamiento/motor.ts';
 
 /**
@@ -30,6 +31,10 @@ export class Planificador {
       await procesarPendientes({ bd: this.app.bd, cifrador: this.app.cifrador, modelos: this.app.modelos }, { minutosInactividad: this.app.config.memoriaMinutosInactividad });
       // El resumen para el supervisor, una vez procesada la memoria de la sesión.
       await generarInformesPendientes({ bd: this.app.bd, cifrador: this.app.cifrador, modelos: this.app.modelos });
+    });
+    // Informe semanal de evolución: el de la semana anterior, apenas empieza la nueva.
+    this.cada('semanal', 60 * 60_000, async () => {
+      await generarInformesSemanales({ bd: this.app.bd, cifrador: this.app.cifrador, modelos: this.app.modelos }, new Date());
     });
   }
 

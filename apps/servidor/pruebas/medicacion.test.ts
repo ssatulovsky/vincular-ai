@@ -117,7 +117,7 @@ describe('agenda y ciclo del recordatorio', () => {
     await cicloMedicacion(d, T('2030-03-10T23:00:10Z'));
     const sesion = await abrirSesion(e.app.bd, e.ids.personaAjena, null, 'persona', 'texto');
     const turno = await insertarTurno(e.app.bd, e.app.cifrador, sesion, e.ids.personaAjena, 'persona', 'ya me la tomé', 'persona');
-    const ambito: AmbitoHerramienta = { bd: e.app.bd, cifrador: e.app.cifrador, modelos: e.app.modelos, personaId: e.ids.personaAjena, sesionId: sesion, dispositivoId: null, turnoPersonaId: turno, ahora: () => T('2030-03-10T23:05:00Z'), alReportarRiesgo: () => undefined };
+    const ambito: AmbitoHerramienta = { bd: e.app.bd, cifrador: e.app.cifrador, modelos: e.app.modelos, personaId: e.ids.personaAjena, sesionId: sesion, dispositivoId: null, turnoPersonaId: turno, textoPersona: '', ahora: () => T('2030-03-10T23:05:00Z'), alReportarRiesgo: () => undefined };
     expect(await ejecutarHerramienta(ambito, 'medicacion_confirmar_dosis', {})).toEqual({ confirmadas: 1 });
     expect(await estado(medId, '2030-03-10T23:00:00Z')).toMatchObject({ estado: 'confirmada', confirmacion_origen: 'voz', confirmada_tarde: false });
     const r = await cicloMedicacion(d, T('2030-03-11T00:40:00Z'));
@@ -230,7 +230,7 @@ describe('herramientas del agente: omisiones y preguntas para el control', () =>
     expect(cita.estado).toBe(201);
     const sesion = await abrirSesion(e.app.bd, e.ids.persona, null, 'persona', 'texto');
     const turno = await insertarTurno(e.app.bd, e.app.cifrador, sesion, e.ids.persona, 'persona', 'esa pastilla me da mareos', 'persona');
-    const ambito: AmbitoHerramienta = { bd: e.app.bd, cifrador: e.app.cifrador, modelos: e.app.modelos, personaId: e.ids.persona, sesionId: sesion, dispositivoId: null, turnoPersonaId: turno, ahora: () => new Date(), alReportarRiesgo: () => undefined };
+    const ambito: AmbitoHerramienta = { bd: e.app.bd, cifrador: e.app.cifrador, modelos: e.app.modelos, personaId: e.ids.persona, sesionId: sesion, dispositivoId: null, turnoPersonaId: turno, textoPersona: '', ahora: () => new Date(), alReportarRiesgo: () => undefined };
 
     expect(await ejecutarHerramienta(ambito, 'medicacion_no_tomada', { evento_ids: [ev.rows[0]!.id], motivo: 'me da mareos' })).toEqual({ registradas: 1 });
     expect(await ejecutarHerramienta(ambito, 'control_anotar_pregunta', { texto: '¿La sertralina me puede dar mareos?' })).toEqual({ anotada: true });

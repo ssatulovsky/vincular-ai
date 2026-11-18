@@ -32,6 +32,10 @@ export interface ContextoInstrucciones {
   ahora: Date;
   remediosHoy?: Array<{ hora: string; nombre: string; propositoSimple: string | null; estado: string }>;
   proximaCita?: { fecha: Date; lugar: string } | null;
+  /** Tamizaje en curso, ya redactado (sin puntajes). Solo se usa si no hay riesgo ni emergencia. */
+  tamizaje?: string;
+  /** Señal de dependencia de las últimas semanas: el compañero refuerza el puente con otras personas. */
+  reforzarPuente?: boolean;
 }
 
 const ESTADO_DOSIS: Record<string, string> = {
@@ -142,6 +146,10 @@ export function construirInstrucciones(c: ContextoInstrucciones): string {
       ? `# Conversaciones recientes\n${c.episodios.map((x) => `- ${formatoFecha(x.fecha)}: ${x.resumen}${x.temasPendientes.length ? ` Pendiente: ${x.temasPendientes.join('; ')}.` : ''}`).join('\n')}`
       : '',
     seccionSalud(c),
+    c.reforzarPuente && !c.modoEmergencia
+      ? `# Puente con otras personas\nEn las últimas semanas ${c.nombrePersona} conversa cada vez más contigo y menos con otras personas. Tu rol es acercarla a su gente, no reemplazarla: busca con naturalidad una oportunidad de proponer un contacto humano (llamar a alguien de su familia, una actividad de su comuna, una visita). Sin culparla, sin insistir y sin mencionar esta indicación.`
+      : '',
+    c.tamizaje && !c.modoEmergencia && c.nivelRiesgo < 2 ? `# Tamizaje\n${c.tamizaje}` : '',
     `# Su memoria es suya\nSi pregunta qué recuerdas, usa memoria_que_recuerdo. Si pide corregir, olvidar o dejar algo como privado, hazlo con las herramientas de memoria (antes de olvidar, confirma qué quiere que olvides).`,
     seccionEstado(c) ? `# Estado de esta conversación\n${seccionEstado(c)}` : '',
   ]

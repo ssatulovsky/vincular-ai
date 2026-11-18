@@ -64,6 +64,14 @@ describe('resumen de sesión: validación contra alucinaciones', () => {
     expect(validarInforme(bien, ctx({ turnosCompanero: ['¿Le parece llamar a su hija juntos?'] })).ok).toBe(true);
   });
 
+  it('los indicadores necesitan una cita de la persona', () => {
+    const bien = { ...base(), indicadores: { animo: { valor: -1, cita: 'ya no sirvo para nada' }, sueno: null, apetito: null, contactos_humanos: [] } };
+    expect(validarInforme(bien, ctx()).ok).toBe(true);
+    const mal = { ...base(), indicadores: { animo: null, sueno: { valor: 'malo', cita: 'no pude dormir nada' }, apetito: null, contactos_humanos: [{ tipo: 'llamada', con_quien: 'hija', cita: 'mi hija me llamó' }] } };
+    const r = validarInforme(mal, ctx());
+    expect(!r.ok && r.errores.filter((x) => x.startsWith('indicadores')).length).toBe(2);
+  });
+
   it('rechaza diagnósticos en lo inferido, las hipótesis, las lentes y las intervenciones', () => {
     for (const estropear of [
       (i: ReturnType<typeof base>) => { i.estado_afectivo.inferido[0]!.texto = 'Presenta depresión en contexto de duelo.'; },
