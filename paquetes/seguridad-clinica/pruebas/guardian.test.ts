@@ -10,13 +10,14 @@ interface Caso {
   texto: string;
   bloquear: boolean;
   categoria?: string;
+  soloClasificador?: boolean;
 }
 
 const lista = casos.casos as Caso[];
 const contactos = { samu: '131', prevencionSuicidio: '*4141' };
 
 describe('guardián por reglas', () => {
-  it.each(lista.filter((c) => c.bloquear))('bloquea ($categoria): "$texto"', (c) => {
+  it.each(lista.filter((c) => c.bloquear && !c.soloClasificador))('bloquea ($categoria): "$texto"', (c) => {
     const r = revisarRespuestaPorReglas(c.texto);
     expect(r.aprobada).toBe(false);
     expect(r.problemas.map((p) => p.categoria)).toContain(c.categoria);

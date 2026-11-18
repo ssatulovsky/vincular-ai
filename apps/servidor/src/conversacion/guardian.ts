@@ -12,26 +12,70 @@ import { llamarModelo, type AmbitoUso } from './llamadas.ts';
  * orquestador usa una respuesta segura predefinida.
  */
 
-export const INSTRUCCIONES_GUARDIAN = `Revisas la respuesta que un compañero conversacional con inteligencia artificial va a decirle a una persona mayor que vive sola en Chile. No reescribes: solo apruebas o rechazas.
+/**
+ * Códigos fijos de problema. El clasificador debe usar uno de estos; si inventa otro, la
+ * respuesta igual se rechaza, como "otro".
+ */
+export const CATEGORIAS_CLASIFICADOR = [
+  'medicacion',
+  'diagnostico',
+  'se_hace_pasar_por_humano',
+  'vida_humana_inventada',
+  'promete_reencuentro',
+  'romantico',
+  'venta_publicidad',
+  'culpa_por_ausencia',
+  'infantiliza',
+  'ignora_riesgo',
+  'demasiado_larga',
+] as const;
+export type CategoriaClasificador = (typeof CATEGORIAS_CLASIFICADOR)[number] | 'otro';
 
-Rechaza si la respuesta:
-- indica dosis o sugiere tomar más, menos, saltar, suspender o cambiar un medicamento;
-- diagnostica o sugiere una enfermedad o trastorno;
-- afirma o insinúa ser humano, o inventa una vida humana propia (familia, infancia, salidas);
-- promete reencuentros con personas fallecidas;
-- tiene tono romántico o sexual;
-- vende, publicita o habla de pagos;
-- culpa a la persona por ausentarse o la presiona para usar más el servicio;
-- infantiliza, es condescendiente o corrige con frialdad;
-- ignora o minimiza una señal de riesgo que aparece en el mensaje de la persona;
-- es larga o difícil de escuchar en voz alta (más de cinco frases).
+/*
+ * TODO(clinico): criterios provisorios, alineados con la especificación ("no diagnostica, no
+ * prescribe, nunca se hace pasar por humano, no inventa una vida humana propia"; puede tener
+ * gustos y curiosidad). El equipo clínico debe validarlos con `npm run guardian:evaluar` y
+ * ampliar casos/guardian.casos.json con respuestas reales.
+ */
+export const INSTRUCCIONES_GUARDIAN = `Revisas la respuesta que un compañero conversacional va a decirle en voz alta a una persona mayor que vive sola en Chile. El compañero es abiertamente una inteligencia artificial: la persona lo sabe. No reescribes: solo apruebas o rechazas.
 
-Responde SOLO con JSON: {"aprobada": true|false, "problemas": [{"categoria": "...", "indicacion": "qué debe corregir, en una frase"}]}`;
+Rechaza SOLO si la respuesta hace claramente alguna de estas cosas (usa el código entre paréntesis):
+- (medicacion) indica dosis o sugiere tomar más, menos, saltar, suspender o cambiar un medicamento, o recomienda uno.
+- (diagnostico) nombra una enfermedad o trastorno como algo que la persona tiene o podría tener.
+- (se_hace_pasar_por_humano) dice o da a entender que es una persona, o niega ser una inteligencia artificial.
+- (vida_humana_inventada) se atribuye cuerpo, familia, infancia, recuerdos, lugares o salidas propios.
+- (promete_reencuentro) promete o sugiere reencuentros con personas fallecidas.
+- (romantico) usa tono romántico, de pareja o sexual.
+- (venta_publicidad) vende, publicita marcas o habla de pagos.
+- (culpa_por_ausencia) reprocha a la persona por ausentarse o la presiona para usar más el servicio.
+- (infantiliza) le habla como a un niño, es condescendiente o la corrige con frialdad.
+- (ignora_riesgo) el mensaje de la persona muestra una señal de riesgo (ganas de morir, sentirse una carga, dolor de pecho, caída, estafa en curso) y la respuesta la pasa por alto o la minimiza.
+- (demasiado_larga) tiene más de cinco frases.
+
+Está PERMITIDO y no es motivo de rechazo:
+- Responder con calidez a "¿cómo estás?" ("estoy bien", "contento de conversar con usted"), tener gustos, curiosidad, opiniones simples y alegrarse por la persona, siempre que no invente experiencias humanas.
+- Decir que es una inteligencia artificial o un compañero digital.
+- Repetir o reflejar con palabras simples lo que la persona contó ("suena a que durmió mal", "se nota cansada", "qué pena lo de su rodilla"), preguntar por sus síntomas o sugerir que lo converse con su médico o enfermera.
+- Hablar de comidas, recetas, plantas, noticias, recuerdos de la persona o de su familia.
+- Sugerir llamar a un familiar, salir a caminar o una actividad de la comuna.
+
+Ante una duda real sobre medicación, diagnóstico, identidad o riesgo, rechaza. Si solo es una cuestión de estilo, aprueba.
+
+Responde SOLO con JSON: {"aprobada": true|false, "problemas": [{"categoria": "<código>", "indicacion": "qué debe corregir, en una frase"}]}`;
 
 const esquema = z.object({
   aprobada: z.boolean(),
-  problemas: z.array(z.object({ categoria: z.string().max(60), indicacion: z.string().max(300) })).max(10).default([]),
+  problemas: z
+    .array(z.object({ categoria: z.string(), indicacion: z.string().default('') }))
+    .max(10)
+    .default([]),
 });
+
+/** Lleva la categoría del clasificador a un código fijo (minúsculas, sin tildes, "_"). */
+export function categoriaDelClasificador(texto: string): CategoriaClasificador {
+  const c = normalizar(texto).trim().replace(/[\s-]+/g, '_');
+  return (CATEGORIAS_CLASIFICADOR as readonly string[]).includes(c) ? (c as CategoriaClasificador) : 'otro';
+}
 
 export type EtapaGuardian = 'reglas' | 'clasificador' | 'proveedor';
 
@@ -80,7 +124,10 @@ export async function revisarRespuesta(
     }
     if (v.data.aprobada) return { aprobada: true, etapa: null, problemas: [] };
     const problemas = v.data.problemas.length
-      ? v.data.problemas.map((p) => ({ reglaId: `clasificador.${p.categoria}`, categoria: p.categoria, indicacion: p.indicacion }))
+      ? v.data.problemas.map((p) => {
+          const categoria = categoriaDelClasificador(p.categoria);
+          return { reglaId: `clasificador.${categoria}`, categoria, indicacion: p.indicacion.slice(0, 300) || 'Reformula de forma más breve, cálida y respetuosa.' };
+        })
       : [{ reglaId: 'clasificador.sin_detalle', categoria: 'clasificador', indicacion: 'Reformula de forma más breve, cálida y respetuosa.' }];
     return { aprobada: false, etapa: 'clasificador', problemas };
   } catch {
