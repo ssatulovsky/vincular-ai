@@ -23,6 +23,6 @@ export const rutasAutenticacion =
       const a = exigirActor(req);
       if (a.tipo === 'dispositivo') return { tipo: 'dispositivo', personaId: a.personaId };
       if (a.tipo === 'familiar') return { tipo: 'familiar', nombre: a.nombre, personaId: a.personaId };
-      return { tipo: 'personal', nombre: a.nombre, rol: a.rol };
+      return { tipo: 'personal', id: a.id, nombre: a.nombre, rol: a.rol };
     });
   };

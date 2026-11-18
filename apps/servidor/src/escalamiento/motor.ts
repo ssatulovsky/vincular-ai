@@ -100,7 +100,7 @@ async function destinatarios(d: DependenciasEscalamiento, c: Consultable, e: Fil
   switch (paso.destino) {
     case 'cuidadores': {
       const r = await c.query<{ id: string; telefono_cifrado: Buffer | null }>(
-        `SELECT id, telefono_cifrado FROM contacto WHERE persona_id = $1 AND es_cuidador AND ($2::text IS NULL OR (permisos->>$2)::boolean IS TRUE)
+        `SELECT id, telefono_cifrado FROM contacto WHERE persona_id = $1 AND es_cuidador AND dado_de_baja_en IS NULL AND ($2::text IS NULL OR (permisos->>$2)::boolean IS TRUE)
           ORDER BY prioridad_emergencia NULLS LAST`,
         [e.persona_id, paso.permisoCuidador ?? null],
       );

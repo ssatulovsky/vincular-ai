@@ -11,6 +11,8 @@ export type Accion =
   | 'cuenta.crear'
   | 'persona.crear'
   | 'persona.ver_ficha'
+  | 'persona.ver_datos'
+  | 'persona.editar'
   | 'dispositivo.crear'
   | 'asignacion.gestionar'
   | 'perfil_companero.editar'
@@ -74,10 +76,13 @@ export function decidirPermiso(actor: Actor, accion: Accion, personaId: string |
     case 'cuenta.crear':
     case 'costos.ver':
     case 'persona.crear':
+    case 'persona.editar':
     case 'dispositivo.crear':
     case 'asignacion.gestionar':
       return rol === 'admin_plataforma';
     case 'perfil_companero.editar':
+    case 'persona.ver_datos':
+      // Datos administrativos (contactos, tablet, equipo, consentimiento): sin contenido clínico.
       return rol === 'admin_plataforma' || (CLINICOS.includes(rol) && ctx.asignado);
     case 'persona.ver_ficha':
     case 'plan.leer':
@@ -107,7 +112,7 @@ export async function contextoDe(bd: Consultable, actor: Actor, personaId: strin
     const r = await bd.query('SELECT 1 FROM asignacion_personal WHERE cuenta_id = $1 AND persona_id = $2', [actor.id, personaId]);
     ctx.asignado = (r.rowCount ?? 0) > 0;
   } else if (actor.tipo === 'familiar') {
-    const r = await bd.query<{ permisos: Record<string, unknown> }>('SELECT permisos FROM contacto WHERE id = $1 AND persona_id = $2', [actor.contactoId, personaId]);
+    const r = await bd.query<{ permisos: Record<string, unknown> }>('SELECT permisos FROM contacto WHERE id = $1 AND persona_id = $2 AND dado_de_baja_en IS NULL', [actor.contactoId, personaId]);
     if (r.rows[0]) {
       ctx.esSuContacto = true;
       ctx.permisosContacto = r.rows[0].permisos;

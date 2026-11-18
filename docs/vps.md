@@ -70,11 +70,13 @@ El último comando pide un nombre y una comuna de prueba y muestra un **código*
 
 Para diseñar el compañero (género, edad, nombre, voz y retrato): en la tablet, el enlace **Mi compañero**; desde un computador, `https://<su-dirección>/companero` con una cuenta del equipo.
 
-Opcional, para la API de administración y la pantalla de diseño desde el computador:
+**Panel del equipo:** `https://<su-dirección>/panel`. La primera cuenta de administración se crea en el VPS:
 
 ```bash
 sudo bash /opt/vincular-ai/scripts/vps/crear-admin.sh
 ```
+
+Con esa cuenta, en el panel: **Equipo → Crear cuenta** para cada profesional (psicólogo supervisor, enfermera de enlace, gerontólogo, guardia) y **Pacientes → Agregar persona** para cada participante. En la ficha de la persona: contactos, código de la tablet, equipo asignado y consentimiento. Cada profesional ve solo a las personas que se le asignan; la administración nunca ve contenido clínico.
 
 ## 5. Conversación en tiempo real (opcional)
 

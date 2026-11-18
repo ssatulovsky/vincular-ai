@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1E5A47">
+<title>Vincular-IA · Panel del equipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  /*
+   * Panel del equipo. Misma familia visual que la tablet (Atkinson Hyperlegible, verde botella),
+   * a escala de escritorio. Lo único que destaca es el riesgo: la escala de 4 marcas por persona y
+   * la banda roja cuando hay una alerta sin acuse. Todo lo demás es tranquilo y denso.
+   */
+  :root {
+    --fondo: #EEF2EF; --superficie: #FFFFFF; --tinta: #12221B; --tinta-suave: #4A5E55; --linea: #D3DDD7;
+    --botella: #1E5A47; --botella-claro: #DCE9E2; --mostaza: #E2A41F;
+    --n1: #7A8F3B; --n2: #A35A0C; --n3: #A3121A; --n3-claro: #FBE9EA;
+    --radio: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--fondo); color: var(--tinta); font: 16px/1.5 "Atkinson Hyperlegible", Verdana, sans-serif; }
+  .oculto { display: none !important; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--mostaza); outline-offset: 2px; }
+  a { color: var(--botella); }
+  h1 { font-size: 28px; line-height: 1.2; margin: 0; }
+  h2 { font-size: 20px; margin: 28px 0 10px; }
+  h3 { font-size: 17px; margin: 18px 0 6px; }
+  p { margin: 0 0 10px; max-width: 72ch; }
+  .suave { color: var(--tinta-suave); }
+
+  /* ── Ingreso ── */
+  #ingreso { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+  #ingreso form { width: min(420px, 100%); background: var(--superficie); border-radius: var(--radio); padding: 32px; border: 1px solid var(--linea); }
+  #ingreso h1 { margin-bottom: 6px; }
+  #ingreso p { margin-bottom: 22px; }
+
+  /* ── Estructura ── */
+  #app { display: grid; grid-template-columns: 220px 1fr; min-height: 100%; }
+  nav { background: var(--botella); color: #fff; padding: 22px 14px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
+  nav .marca { font-weight: 700; font-size: 19px; padding: 0 10px 18px; }
+  nav button { background: none; border: 0; color: #fff; text-align: left; padding: 10px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  nav button[aria-current="page"] { background: rgba(255,255,255,.16); font-weight: 700; }
+  nav button:hover { background: rgba(255,255,255,.1); }
+  nav .contador { background: var(--n3); color: #fff; border-radius: 999px; min-width: 24px; padding: 0 7px; font-size: 13px; font-weight: 700; text-align: center; }
+  nav .quien { margin-top: auto; padding: 10px; font-size: 14px; border-top: 1px solid rgba(255,255,255,.2); }
+  nav .quien span { display: block; opacity: .8; }
+  nav .quien button { padding: 6px 0; text-decoration: underline; }
+  main { padding: 28px 36px 80px; min-width: 0; }
+  .cabeza { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+
+  /* ── Controles ── */
+  .boton { border: 2px solid var(--botella); background: var(--botella); color: #fff; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; }
+  .boton.sec { background: var(--superficie); color: var(--botella); }
+  .boton.peligro { border-color: var(--n3); background: var(--superficie); color: var(--n3); }
+  .boton.chico { padding: 4px 10px; font-size: 14px; }
+  .boton:disabled { opacity: .5; cursor: default; }
+  label { display: block; font-weight: 700; margin: 12px 0 4px; }
+  label .suave { font-weight: 400; }
+  input[type=text], input[type=email], input[type=password], input[type=date], input[type=datetime-local], input[type=search], input[type=number], select, textarea {
+    width: 100%; padding: 9px 11px; border: 1px solid #A9B8B0; border-radius: 8px; background: #fff;
+  }
+  textarea { min-height: 90px; resize: vertical; }
+  input[readonly], textarea[readonly] { background: #F5F7F6; }
+  .fila { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 16px; }
+  .acciones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
+  .check { display: flex; gap: 8px; align-items: center; font-weight: 400; margin: 6px 0; }
+  .error { color: var(--n3); font-weight: 700; min-height: 1.5em; margin: 8px 0 0; }
+  .ok { color: var(--botella); font-weight: 700; }
+  .buscar { max-width: 320px; }
+
+  /* ── Tablas ── */
+  .tabla { width: 100%; border-collapse: collapse; background: var(--superficie); border-radius: var(--radio); overflow: hidden; border: 1px solid var(--linea); }
+  .tabla th { text-align: left; font-size: 14px; color: var(--tinta-suave); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--linea); background: #F7F9F8; }
+  .tabla td { padding: 11px 12px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+  .tabla tr:last-child td { border-bottom: 0; }
+  .tabla tbody tr.clic { cursor: pointer; }
+  .tabla tbody tr.clic:hover { background: #F4F8F6; }
+  .tabla tr.pendiente td:first-child { box-shadow: inset 5px 0 0 var(--n3); }
+  .vacio { background: var(--superficie); border: 1px dashed #A9B8B0; border-radius: var(--radio); padding: 24px; color: var(--tinta-suave); }
+
+  /* Escala de riesgo: 4 marcas (0 a 3), se llenan hasta el nivel. */
+  .escala { display: inline-flex; gap: 3px; vertical-align: middle; }
+  .escala i { width: 9px; height: 18px; border-radius: 2px; background: var(--linea); }
+  .escala[data-n="1"] i:nth-child(-n+2) { background: var(--n1); }
+  .escala[data-n="2"] i:nth-child(-n+3) { background: var(--n2); }
+  .escala[data-n="3"] i { background: var(--n3); }
+  .escala[data-n="0"] i:first-child { background: #8FA89B; }
+  .nivel { display: inline-block; font-weight: 700; border-radius: 6px; padding: 1px 8px; font-size: 14px; color: #fff; }
+  .nivel[data-n="1"] { background: var(--n1); } .nivel[data-n="2"] { background: var(--n2); } .nivel[data-n="3"] { background: var(--n3); }
+  .estado { font-size: 14px; padding: 1px 8px; border-radius: 6px; background: var(--botella-claro); white-space: nowrap; }
+  .estado[data-e="pausada"], .estado[data-e="onboarding"] { background: #F3E6C7; }
+  .estado[data-e="baja"] { background: #E3E3E3; }
+  .aviso { color: var(--n2); font-weight: 700; }
+
+  /* ── Ficha ── */
+  .volver { background: none; border: 0; color: var(--botella); cursor: pointer; padding: 0; margin-bottom: 10px; text-decoration: underline; }
+  .datos-cabeza { color: var(--tinta-suave); margin-top: 4px; }
+  .pestanas { display: flex; gap: 2px; border-bottom: 2px solid var(--linea); margin: 18px 0 20px; flex-wrap: wrap; }
+  .pestanas button { background: none; border: 0; padding: 10px 14px; cursor: pointer; color: var(--tinta-suave); border-bottom: 3px solid transparent; margin-bottom: -2px; }
+  .pestanas button[aria-selected="true"] { color: var(--tinta); font-weight: 700; border-bottom-color: var(--botella); }
+  .bloque { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--radio); padding: 20px 22px; margin-bottom: 16px; }
+  .bloque > h2:first-child, .bloque > h3:first-child { margin-top: 0; }
+  .lista-simple { list-style: none; padding: 0; margin: 0; }
+  .lista-simple li { padding: 10px 0; border-bottom: 1px solid var(--linea); display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .lista-simple li:last-child { border-bottom: 0; }
+  .codigo { font-size: 22px; font-weight: 700; letter-spacing: .5px; background: var(--botella-claro); padding: 12px 14px; border-radius: 8px; word-break: break-all; user-select: all; }
+  .umbral { display: grid; grid-template-columns: 2fr 110px 2fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .turno { padding: 10px 12px; border-radius: 8px; margin: 6px 0; max-width: 80ch; }
+  .turno.persona { background: var(--botella-claro); }
+  .turno.agente { background: #F4F4F0; }
+  .turno small { display: block; color: var(--tinta-suave); }
+  .fragmento { background: var(--n3-claro); border-left: 4px solid var(--n3); padding: 10px 14px; margin: 10px 0; white-space: pre-wrap; }
+  .privado { font-size: 13px; background: #EEE3F5; border-radius: 6px; padding: 0 6px; }
+
+  dialog { border: 0; border-radius: var(--radio); padding: 26px 28px; width: min(620px, 94vw); max-height: 90vh; box-shadow: 0 18px 60px rgba(18,34,27,.3); }
+  dialog::backdrop { background: rgba(18,34,27,.45); }
+  dialog h2 { margin-top: 0; }
+
+  @media (max-width: 820px) {
+    #app { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }
+    nav .marca { padding: 0 10px; }
+    nav .quien { margin: 0 0 0 auto; border: 0; }
+    main { padding: 20px 16px 60px; }
+    .tabla .opcional { display: none; }
+    .umbral { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<section id="ingreso" class="oculto">
+  <form id="form-ingreso">
+    <h1>Panel del equipo</h1>
+    <p class="suave">Ingrese con la cuenta que le entregó el equipo de Vincular-IA.</p>
+    <label for="email">Correo</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="contrasena">Contraseña</label>
+    <input id="contrasena" type="password" autocomplete="current-password" required>
+    <div class="acciones"><button class="boton" type="submit">Ingresar</button></div>
+    <p class="error" id="error-ingreso" role="alert"></p>
+  </form>
+</section>
+
+<div id="app" class="oculto">
+  <nav aria-label="Secciones">
+    <div class="marca">Vincular-IA</div>
+    <button type="button" data-vista="pacientes">Pacientes</button>
+    <button type="button" data-vista="alertas" id="nav-alertas">Alertas <span class="contador oculto" id="contador-alertas"></span></button>
+    <button type="button" data-vista="equipo" id="nav-equipo" class="oculto">Equipo</button>
+    <div class="quien"><strong id="quien-nombre"></strong><span id="quien-rol"></span><button type="button" id="salir">Salir</button></div>
+  </nav>
+  <main id="contenido" tabindex="-1"></main>
+</div>
+
+<dialog id="dialogo"><form method="dialog" id="dialogo-form"></form></dialog>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const CLAVE = 'vincular.tokenEquipo';
+  const leer = () => { try { return sessionStorage.getItem(CLAVE); } catch { return null; } };
+  const guardar = (v) => { try { v ? sessionStorage.setItem(CLAVE, v) : sessionStorage.removeItem(CLAVE); } catch {} };
+  let token = leer();
+  let yo = null;
+
+  const ROLES = { supervisor_clinico: 'Psicólogo/a supervisor/a', enfermera_enlace: 'Enfermera/o de enlace', gerontologo: 'Gerontólogo/a', guardia: 'Guardia clínica', admin_plataforma: 'Administración' };
+  const ESTADOS = { onboarding: 'En incorporación', activa: 'Activa', pausada: 'Pausada', baja: 'De baja' };
+  const CAPAS = { biografica: 'Biografía', relacional: 'Personas importantes', salud: 'Salud', preferencias: 'Preferencias', episodica: 'Conversaciones' };
+  const ORIGEN = { modelo: 'compañero', modelo_regenerado: 'compañero (corregido por el guardián)', respuesta_segura: 'respuesta segura', protocolo_emergencia: 'protocolo de emergencia', persona: 'persona' };
+  const esAdmin = () => yo?.rol === 'admin_plataforma';
+  const esGuardia = () => yo?.rol === 'guardia';
+  const esClinico = () => yo && !esAdmin() && !esGuardia();
+  const esSupervisor = () => yo?.rol === 'supervisor_clinico';
+
+  // ── Utilidades ──────────────────────────────────────────────────────────────────
+  /** Crea un elemento. Los textos van siempre como textContent: nada de lo que dice una persona se interpreta como HTML. */
+  function h(etiqueta, attrs = {}, ...hijos) {
+    const el = document.createElement(etiqueta);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else if (k === 'class') el.className = v;
+      else if (k === 'dataset') Object.assign(el.dataset, v);
+      else if (v === true) el.setAttribute(k, '');
+      else el.setAttribute(k, v);
+    }
+    for (const c of hijos.flat()) if (c !== null && c !== undefined && c !== false) el.append(c instanceof Node ? c : String(c));
+    return el;
+  }
+  const fecha = (d) => d ? new Date(d).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  const fechaHora = (d) => d ? new Date(d).toLocaleString('es-CL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  const hace = (d) => {
+    if (!d) return 'nunca';
+    const m = Math.round((Date.now() - new Date(d).getTime()) / 60000);
+    if (m < 60) return `hace ${Math.max(m, 1)} min`;
+    if (m < 1440) return `hace ${Math.round(m / 60)} h`;
+    const dias = Math.round(m / 1440);
+    return dias === 1 ? 'ayer' : `hace ${dias} días`;
+  };
+  const duracion = (a, b) => { if (!b) return 'en curso'; const m = Math.round((new Date(b) - new Date(a)) / 60000); return m < 1 ? 'menos de 1 min' : `${m} min`; };
+  const escala = (n) => h('span', { class: 'escala', dataset: { n: String(n ?? 0) }, role: 'img', 'aria-label': `Nivel de riesgo ${n ?? 0} de 3` }, h('i'), h('i'), h('i'), h('i'));
+  // Señales y orígenes en palabras: "desesperanza_carga" → "desesperanza carga".
+  const senales = (xs) => (xs ?? []).map((x) => x.replaceAll('_', ' ')).join(', ') || '—';
+  const FUENTES = { reglas: 'reglas', clasificador: 'clasificador', agente: 'compañero', umbral_personal: 'umbral del plan', sistema: 'sistema' };
+  const lineas = (t) => t.split('\n').map((x) => x.trim()).filter(Boolean);
+
+  async function api(metodo, url, cuerpo) {
+    const r = await fetch(url, { method: metodo, headers: { authorization: `Bearer ${token}`, ...(cuerpo !== undefined ? { 'content-type': 'application/json' } : {}) }, body: cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined });
+    if (r.status === 401) { guardar(null); token = null; mostrarIngreso('Su sesión venció. Ingrese de nuevo.'); throw new Error('Sesión vencida'); }
+    const datos = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const det = datos.detalles?.[0]?.message || datos.issues?.[0]?.message;
+      throw new Error(det ? `${datos.error ?? 'Datos inválidos'}: ${det}` : (datos.error ?? `Error ${r.status}`));
+    }
+    return datos;
+  }
+
+  /** Abre el diálogo con un formulario; `alEnviar` devuelve false para mantenerlo abierto. */
+  function dialogo(titulo, campos, textoBoton, alEnviar) {
+    const form = $('dialogo-form');
+    const error = h('p', { class: 'error', role: 'alert' });
+    form.replaceChildren(h('h2', {}, titulo), ...campos, error,
+      h('div', { class: 'acciones' }, textoBoton ? h('button', { class: 'boton', value: 'ok' }, textoBoton) : null, h('button', { class: 'boton sec', value: 'cancelar', formnovalidate: true }, textoBoton ? 'Cancelar' : 'Cerrar')));
+    form.onsubmit = async (ev) => {
+      if (ev.submitter?.value !== 'ok') return;
+      ev.preventDefault();
+      error.textContent = '';
+      try { if ((await alEnviar(form)) !== false) $('dialogo').close(); } catch (e) { error.textContent = e.message; }
+    };
+    $('dialogo').showModal();
+    form.querySelector('input, select, textarea')?.focus();
+  }
+  const campo = (id, texto, attrs = {}) => [h('label', { for: id }, texto), h(attrs.multilinea ? 'textarea' : 'input', { id, type: attrs.multilinea ? null : (attrs.type ?? 'text'), ...attrs, multilinea: null })];
+  const selector = (id, texto, opciones, valor) => [h('label', { for: id }, texto), h('select', { id }, ...Object.entries(opciones).map(([k, v]) => h('option', { value: k, selected: k === valor }, v)))];
+
+  // ── Ingreso ─────────────────────────────────────────────────────────────────────
+  function mostrarIngreso(mensaje = '') {
+    $('app').classList.add('oculto');
+    $('ingreso').classList.remove('oculto');
+    $('error-ingreso').textContent = mensaje;
+    $('email').focus();
+  }
+  $('form-ingreso').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    $('error-ingreso').textContent = '';
+    const r = await fetch('/api/auth/ingresar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: $('email').value, contrasena: $('contrasena').value }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { $('error-ingreso').textContent = d.error ?? 'No se pudo ingresar.'; return; }
+    token = d.token; guardar(token); $('contrasena').value = '';
+    iniciar();
+  });
+  $('salir').addEventListener('click', async () => {
+    try { await api('POST', '/api/auth/salir'); } catch {}
+    guardar(null); token = null; mostrarIngreso();
+  });
+
+  async function iniciar() {
+    if (!token) return mostrarIngreso();
+    try { yo = await api('GET', '/api/yo'); } catch { return; }
+    if (yo.tipo !== 'personal') { guardar(null); token = null; return mostrarIngreso('Este panel es para el equipo. Las familias tendrán su propio acceso.'); }
+    $('ingreso').classList.add('oculto');
+    $('app').classList.remove('oculto');
+    $('quien-nombre').textContent = yo.nombre;
+    $('quien-rol').textContent = ROLES[yo.rol] ?? yo.rol;
+    $('nav-equipo').classList.toggle('oculto', !esAdmin());
+    $('nav-alertas').classList.toggle('oculto', esAdmin());
+    contarAlertas();
+    ir(esGuardia() ? 'alertas' : 'pacientes');
+  }
+
+  // ── Navegación ──────────────────────────────────────────────────────────────────
+  document.querySelectorAll('nav [data-vista]').forEach((b) => b.addEventListener('click', () => ir(b.dataset.vista)));
+  function ir(vista, arg) {
+    document.querySelectorAll('nav [data-vista]').forEach((b) => b.toggleAttribute('aria-current', b.dataset.vista === vista || (vista === 'ficha' && b.dataset.vista === 'pacientes')));
+    document.querySelectorAll('nav [aria-current]').forEach((b) => b.setAttribute('aria-current', 'page'));
+    const c = $('contenido');
+    c.replaceChildren(h('p', { class: 'suave' }, 'Cargando…'));
+    ({ pacientes: vistaPacientes, alertas: vistaAlertas, equipo: vistaEquipo, ficha: vistaFicha })[vista](c, arg).catch((e) => c.replaceChildren(h('p', { class: 'error' }, e.message)));
+    c.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }
+  async function contarAlertas() {
+    if (esAdmin()) return;
+    try {
+      const { alertas } = await api('GET', '/api/alertas?pendientes=true');
+      const c = $('contador-alertas');
+      c.textContent = String(alertas.length);
+      c.classList.toggle('oculto', alertas.length === 0);
+    } catch {}
+  }
+  setInterval(() => { if (token && yo) contarAlertas(); }, 60_000);
+
+  // ── Pacientes ───────────────────────────────────────────────────────────────────
+  async function vistaPacientes(c) {
+    const { personas } = await api('GET', '/api/personas');
+    const buscar = h('input', { type: 'search', class: 'buscar', placeholder: 'Buscar por nombre o comuna', 'aria-label': 'Buscar pacientes' });
+    const cuerpo = h('tbody');
+    const columnas = esAdmin()
+      ? ['Nombre', 'Edad', 'Comuna', 'Estado', 'Consentimiento', 'Tablet', 'Profesionales']
+      : esGuardia() ? ['Nombre', 'Comuna', 'Alertas sin acuse'] : ['Riesgo 7 días', 'Nombre', 'Edad', 'Comuna', 'Última conversación', 'Alertas sin acuse'];
+    const opcionales = new Set(['Edad', 'Profesionales', 'Última conversación', 'Tablet']);
+    const tabla = h('table', { class: 'tabla' }, h('thead', {}, h('tr', {}, columnas.map((x) => h('th', { class: opcionales.has(x) ? 'opcional' : null }, x)))), cuerpo);
+
+    // Primero quien necesita atención: alertas sin acuse, luego nivel de la semana.
+    const ordenadas = [...personas].sort((a, b) => ((b.alertasPendientes ?? 0) - (a.alertasPendientes ?? 0)) || ((b.nivelUltimos7Dias ?? 0) - (a.nivelUltimos7Dias ?? 0)) || a.nombre.localeCompare(b.nombre, 'es'));
+    const pintar = () => {
+      const q = buscar.value.trim().toLowerCase();
+      const visibles = ordenadas.filter((p) => !q || p.nombre.toLowerCase().includes(q) || p.comuna.toLowerCase().includes(q));
+      cuerpo.replaceChildren(...visibles.map((p) => {
+        const alertas = p.alertasPendientes ? h('span', { class: 'nivel', dataset: { n: '3' } }, String(p.alertasPendientes)) : h('span', { class: 'suave' }, '0');
+        const consentimiento = !p.consentimientoVigenteHasta ? h('span', { class: 'aviso' }, 'Sin registrar')
+          : new Date(p.consentimientoVigenteHasta) < new Date() ? h('span', { class: 'aviso' }, `Vencido el ${fecha(p.consentimientoVigenteHasta)}`)
+          : `Hasta ${fecha(p.consentimientoVigenteHasta)}`;
+        const celdas = esAdmin()
+          ? [h('strong', {}, p.nombre), p.edad ?? '—', p.comuna, h('span', { class: 'estado', dataset: { e: p.estado } }, ESTADOS[p.estado]), consentimiento,
+             p.tablets ? `${p.tablets} ${p.tablets === 1 ? 'activa' : 'activas'} · uso ${hace(p.ultimoUsoTablet)}` : h('span', { class: 'aviso' }, 'Sin tablet'),
+             p.profesionales.length ? p.profesionales.join(', ') : h('span', { class: 'aviso' }, 'Sin asignar')]
+          : esGuardia() ? [h('strong', {}, p.nombre), p.comuna, alertas]
+          : [escala(p.nivelUltimos7Dias), h('strong', {}, p.nombre), p.edad ?? '—', p.comuna, hace(p.ultimaSesion), alertas];
+        const abrir = () => esGuardia() ? ir('alertas') : ir('ficha', p.id);
+        return h('tr', { class: `clic${p.alertasPendientes ? ' pendiente' : ''}`, tabindex: '0', onclick: abrir, onkeydown: (ev) => { if (ev.key === 'Enter') abrir(); } },
+          celdas.map((x, i) => h('td', { class: opcionales.has(columnas[i]) ? 'opcional' : null }, x)));
+      }));
+    };
+    buscar.addEventListener('input', pintar);
+    pintar();
+
+    const nueva = esAdmin() ? h('button', { class: 'boton', type: 'button', onclick: agregarPersona }, 'Agregar persona') : null;
+    const ayuda = esAdmin() ? 'Altas, tablets, contactos, equipo y consentimiento. El contenido clínico lo ve solo el equipo asignado.'
+      : esGuardia() ? 'Todas las personas del piloto. Su trabajo está en Alertas.'
+      : 'Sus personas asignadas. Primero quienes tienen alertas sin acuse o más riesgo esta semana.';
+    c.replaceChildren(
+      h('div', { class: 'cabeza' }, h('div', {}, h('h1', {}, 'Pacientes'), h('p', { class: 'suave' }, ayuda)), nueva),
+      h('div', { class: 'acciones', style: 'margin:0 0 14px' }, buscar),
+      personas.length ? tabla : h('div', { class: 'vacio' }, esAdmin() ? 'Todavía no hay personas. Agregue la primera para entregarle su tablet.' : 'Todavía no tiene personas asignadas. Pídale a administración que lo asigne.'),
+    );
+  }
+
+  function agregarPersona() {
+    dialogo('Agregar persona', [
+      ...campo('np-nombre', 'Nombre completo', { required: true, minlength: 2, autocomplete: 'off' }),
+      h('div', { class: 'fila' }, h('div', {}, ...campo('np-comuna', 'Comuna', { required: true, minlength: 2 })), h('div', {}, ...campo('np-fecha', 'Fecha de nacimiento', { type: 'date' }))),
+      h('p', { class: 'suave', style: 'margin-top:12px' }, 'Después podrá agregar sus contactos, crear el código de su tablet y asignar a su equipo.'),
+    ], 'Agregar', async () => {
+      const r = await api('POST', '/api/personas', { nombre: $('np-nombre').value, comuna: $('np-comuna').value, ...($('np-fecha').value ? { fechaNacimiento: $('np-fecha').value } : {}) });
+      ir('ficha', r.id);
+    });
+  }
+
+  // ── Ficha ───────────────────────────────────────────────────────────────────────
+  async function vistaFicha(c, id) {
+    const f = await api('GET', `/api/personas/${id}/ficha`);
+    const pestanas = esAdmin()
+      ? [['datos', 'Datos'], ['contactos', 'Contactos'], ['tablet', 'Tablet'], ['equipo', 'Equipo'], ['consentimiento', 'Consentimiento']]
+      : [['resumen', 'Resumen'], ['plan', 'Plan terapéutico'], ['salud', 'Medicación y citas'], ['memoria', 'Memoria'], ['datos', 'Contactos y datos']];
+    const zona = h('div');
+    const barra = h('div', { class: 'pestanas', role: 'tablist' });
+    const abrir = (clave) => {
+      barra.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.p === clave)));
+      zona.replaceChildren(h('p', { class: 'suave' }, 'Cargando…'));
+      PESTANAS[clave](zona, f).catch((e) => zona.replaceChildren(h('p', { class: 'error' }, e.message)));
+    };
+    barra.append(...pestanas.map(([k, t]) => h('button', { type: 'button', role: 'tab', dataset: { p: k }, onclick: () => abrir(k) }, t)));
+    const datos = [f.edad !== null ? `${f.edad} años` : null, f.comuna, f.companero ? `Compañero: ${f.companero}` : 'Sin compañero diseñado'].filter(Boolean).join(' · ');
+    c.replaceChildren(
+      h('button', { class: 'volver', type: 'button', onclick: () => ir('pacientes') }, 'Volver a pacientes'),
+      h('div', { class: 'cabeza' },
+        h('div', {}, h('h1', {}, f.nombre), h('div', { class: 'datos-cabeza' }, h('span', { class: 'estado', dataset: { e: f.estado } }, ESTADOS[f.estado]), ' ', datos)),
+        h('a', { class: 'boton sec', href: `/companero?persona=${encodeURIComponent(f.id)}` }, f.companero ? 'Editar compañero' : 'Diseñar compañero')),
+      barra, zona);
+    abrir(pestanas[0][0]);
+  }
+
+  const PESTANAS = {
+    // Administración
+    async datos(z, f) {
+      if (!esAdmin()) return PESTANAS.datosClinico(z, f);
+      const form = h('form', { class: 'bloque' },
+        h('div', { class: 'fila' }, h('div', {}, ...campo('d-nombre', 'Nombre completo', { value: f.nombre, required: true })), h('div', {}, ...campo('d-comuna', 'Comuna', { value: f.comuna, required: true }))),
+        h('div', { class: 'fila' }, h('div', {}, ...campo('d-fecha', 'Fecha de nacimiento', { type: 'date', value: f.fechaNacimiento ?? '' })), h('div', {}, ...selector('d-estado', 'Estado', ESTADOS, f.estado))),
+        h('div', { class: 'acciones' }, h('button', { class: 'boton' }, 'Guardar cambios'), h('span', { class: 'ok', id: 'd-ok', role: 'status' })),
+        h('p', { class: 'error', id: 'd-error', role: 'alert' }));
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault(); $('d-error').textContent = ''; $('d-ok').textContent = '';
+        try {
+          await api('PUT', `/api/personas/${f.id}`, { nombre: $('d-nombre').value, comuna: $('d-comuna').value, fechaNacimiento: $('d-fecha').value || null, estado: $('d-estado').value });
+          $('d-ok').textContent = 'Cambios guardados';
+        } catch (e) { $('d-error').textContent = e.message; }
+      });
+      z.replaceChildren(form, h('p', { class: 'suave' }, `Ingresó al piloto el ${fecha(f.creadaEn)}.`));
+    },
+
+    async contactos(z, f) {
+      const lista = f.contactos.length ? h('ul', { class: 'lista-simple' }, f.contactos.map((k) => h('li', {},
+        h('div', {}, h('strong', {}, k.nombre), ` (${k.relacion})`, h('br'), h('span', { class: 'suave' }, [k.telefono ?? 'sin teléfono', k.esCuidador ? 'cuidador/a' : null, k.prioridadEmergencia ? `prioridad ${k.prioridadEmergencia} en emergencias` : null].filter(Boolean).join(' · ')),
+          h('br'), h('span', { class: 'suave' }, 'Puede ver: ', permisosTexto(k.permisos))),
+        h('div', { class: 'acciones', style: 'margin:0' },
+          h('button', { class: 'boton sec chico', type: 'button', onclick: () => editarContacto(f, k) }, 'Editar'),
+          h('button', { class: 'boton peligro chico', type: 'button', onclick: () => bajaContacto(f, k) }, 'Dar de baja'))))) : h('div', { class: 'vacio' }, 'Sin contactos. Agregue al menos un cuidador con teléfono: las alertas lo necesitan.');
+      z.replaceChildren(h('div', { class: 'bloque' }, h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Contactos'), h('button', { class: 'boton', type: 'button', onclick: () => editarContacto(f, null) }, 'Agregar contacto')),
+        h('p', { class: 'suave' }, 'Lo que ve cada contacto lo decide la persona. Registre aquí lo que ella autorizó.'), lista));
+    },
+
+    async tablet(z, f) {
+      const activas = f.dispositivos.filter((d) => !d.revocadoEn);
+      const items = f.dispositivos.map((d) => h('li', {},
+        h('div', {}, h('strong', {}, d.nombre), h('br'), h('span', { class: 'suave' }, d.revocadoEn ? `Revocada el ${fecha(d.revocadoEn)}` : `Creada el ${fecha(d.creadoEn)} · último uso ${hace(d.ultimoUsoEn)}`)),
+        d.revocadoEn ? null : h('button', { class: 'boton peligro chico', type: 'button', onclick: () => revocar(f, d) }, 'Revocar')));
+      z.replaceChildren(h('div', { class: 'bloque' },
+        h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Tablet'), h('button', { class: 'boton', type: 'button', onclick: () => nuevaTablet(f) }, activas.length ? 'Crear otro código' : 'Crear código de la tablet')),
+        h('p', { class: 'suave' }, 'El código se muestra una sola vez. Se ingresa en la tablet, en la página /tablet. Si se pierde la tablet, revóquela: deja de funcionar de inmediato.'),
+        items.length ? h('ul', { class: 'lista-simple' }, items) : h('div', { class: 'vacio' }, 'Todavía no tiene tablet.')));
+    },
+
+    async equipo(z, f) {
+      const { cuentas } = await api('GET', '/api/cuentas');
+      const asignados = new Set(f.equipo.map((x) => x.id));
+      const disponibles = cuentas.filter((x) => x.activa && !asignados.has(x.id) && ['supervisor_clinico', 'enfermera_enlace', 'gerontologo'].includes(x.rol));
+      const sel = h('select', { id: 'eq-cuenta', 'aria-label': 'Profesional' }, disponibles.map((x) => h('option', { value: x.id }, `${x.nombre} · ${ROLES[x.rol]}`)));
+      const error = h('p', { class: 'error', role: 'alert' });
+      z.replaceChildren(h('div', { class: 'bloque' }, h('h2', {}, 'Equipo asignado'),
+        h('p', { class: 'suave' }, 'Solo el equipo asignado ve el contenido clínico de esta persona. La guardia ve sus alertas siempre.'),
+        f.equipo.length ? h('ul', { class: 'lista-simple' }, f.equipo.map((x) => h('li', {}, h('div', {}, h('strong', {}, x.nombre), h('br'), h('span', { class: 'suave' }, [ROLES[x.rol], x.institucion, `desde ${fecha(x.asignadaEn)}`].filter(Boolean).join(' · '))),
+          h('button', { class: 'boton peligro chico', type: 'button', onclick: async () => { if (!confirm(`¿Quitar a ${x.nombre} del equipo de ${f.nombre}?`)) return; try { await api('DELETE', `/api/personas/${f.id}/asignaciones/${x.id}`); ir('ficha', f.id); } catch (e) { error.textContent = e.message; } } }, 'Quitar'))))
+          : h('div', { class: 'vacio' }, 'Sin profesionales asignados. Asigne al menos un psicólogo supervisor.'),
+        disponibles.length ? h('div', { class: 'acciones' }, sel, h('button', { class: 'boton', type: 'button', onclick: async () => { try { await api('POST', `/api/personas/${f.id}/asignaciones`, { cuentaId: sel.value }); ir('ficha', f.id); } catch (e) { error.textContent = e.message; } } }, 'Asignar'))
+          : h('p', { class: 'suave' }, 'No hay más profesionales clínicos disponibles. Créelos en Equipo.'),
+        error));
+    },
+
+    async consentimiento(z, f) {
+      const vigente = f.consentimientoVigenteHasta;
+      const estado = !vigente ? h('p', { class: 'aviso' }, 'Sin consentimiento vigente registrado.')
+        : new Date(vigente) < new Date() ? h('p', { class: 'aviso' }, `Venció el ${fecha(vigente)}. Debe revisarse con la persona.`)
+        : h('p', {}, `Vigente hasta el ${fecha(vigente)}. Se revisa cada 6 meses y ante cambios cognitivos.`);
+      const items = f.consentimientos.map((k) => h('li', {},
+        h('div', {}, h('strong', {}, TIPOS_CONSENTIMIENTO[k.tipo] ?? k.tipo), ` · versión ${k.version}`, h('br'),
+          h('span', { class: 'suave' }, `Otorgado el ${fecha(k.otorgadoEn)} por ${k.otorgadoPor === 'persona' ? 'la persona' : 'su representante legal'}${k.revocadoEn ? ` · revocado el ${fecha(k.revocadoEn)}` : ''}`)),
+        k.revocadoEn ? null : h('button', { class: 'boton peligro chico', type: 'button', onclick: async () => { if (!confirm('¿Registrar que se revocó este consentimiento?')) return; await api('POST', `/api/personas/${f.id}/consentimientos/${k.id}/revocar`); ir('ficha', f.id); } }, 'Registrar revocación')));
+      z.replaceChildren(h('div', { class: 'bloque' }, h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Consentimiento'), h('button', { class: 'boton', type: 'button', onclick: () => registrarConsentimiento(f) }, 'Registrar consentimiento')),
+        estado, items.length ? h('ul', { class: 'lista-simple' }, items) : null));
+    },
+
+    // Clínico
+    async resumen(z, f) {
+      const [{ sesiones }, { alertas }] = await Promise.all([api('GET', `/api/personas/${f.id}/sesiones`), api('GET', '/api/alertas?pendientes=false')]);
+      const propias = alertas.filter((a) => a.persona_id === f.id);
+      const filasAlertas = propias.map((a) => h('tr', { class: a.acusado_en ? null : 'pendiente' },
+        h('td', {}, h('span', { class: 'nivel', dataset: { n: String(a.nivel) } }, `Nivel ${a.nivel}`)), h('td', {}, fechaHora(a.creado_en)), h('td', {}, senales(a.categorias)),
+        h('td', {}, a.acusado_en ? `Acusada ${fechaHora(a.acusado_en)}` : h('button', { class: 'boton chico', type: 'button', onclick: () => verAlerta(a.id, () => ir('ficha', f.id)) }, 'Ver y acusar'))));
+      const filasSesiones = sesiones.map((s) => h('tr', {},
+        h('td', {}, escala(s.nivelMaximo)), h('td', {}, fechaHora(s.inicio)), h('td', { class: 'opcional' }, duracion(s.inicio, s.fin)),
+        h('td', { class: 'opcional' }, `${s.canal === 'voz' ? 'Voz' : 'Texto'} · inició ${s.iniciadaPor === 'persona' ? 'la persona' : 'el compañero'}`), h('td', {}, String(s.turnos)),
+        h('td', {}, esSupervisor() && s.turnos ? h('button', { class: 'boton sec chico', type: 'button', onclick: () => abrirTranscripcion(f, s) }, 'Abrir transcripción') : h('span', { class: 'suave' }, s.informe ? 'Resumen listo' : 'Resumen pendiente'))));
+      z.replaceChildren(
+        h('div', { class: 'bloque' }, h('h2', {}, 'Alertas'), propias.length ? h('table', { class: 'tabla' }, h('thead', {}, h('tr', {}, ['Nivel', 'Cuándo', 'Señales', 'Acuse'].map((x) => h('th', {}, x)))), h('tbody', {}, filasAlertas)) : h('p', { class: 'suave' }, 'Sin alertas de nivel 2 o 3.')),
+        h('div', { class: 'bloque' }, h('h2', {}, 'Conversaciones'),
+          h('p', { class: 'suave' }, 'El resumen estructurado de cada sesión llega en la próxima etapa. La transcripción completa la abre solo el supervisor, con un motivo clínico que queda registrado.'),
+          sesiones.length ? h('table', { class: 'tabla' }, h('thead', {}, h('tr', {}, h('th', {}, 'Riesgo'), h('th', {}, 'Inicio'), h('th', { class: 'opcional' }, 'Duración'), h('th', { class: 'opcional' }, 'Canal'), h('th', {}, 'Turnos'), h('th', {}, ''))), h('tbody', {}, filasSesiones)) : h('p', { class: 'suave' }, 'Todavía no ha conversado.')));
+    },
+
+    async plan(z, f) {
+      const [{ plan }, { versiones }] = await Promise.all([api('GET', `/api/personas/${f.id}/plan-terapeutico`), api('GET', `/api/personas/${f.id}/plan-terapeutico/versiones`)]);
+      const p = plan?.contenido ?? {};
+      const editable = esSupervisor();
+      const ro = editable ? {} : { readonly: true };
+      const area = (id, texto, ayuda, valor) => [h('label', { for: id }, texto, ayuda ? h('span', { class: 'suave' }, ` · ${ayuda}`) : null), h('textarea', { id, ...ro }, valor ?? '')];
+      const umbrales = h('div', { id: 'pl-umbrales' });
+      const filaUmbral = (u = { id: '', frase: '', nivel: 2, nota: '' }) => {
+        const fila = h('div', { class: 'umbral', dataset: { id: u.id } },
+          h('input', { type: 'text', placeholder: 'Frase o situación (p. ej. "reunirme con él")', value: u.frase, 'aria-label': 'Frase del umbral', ...ro }),
+          h('select', { 'aria-label': 'Nivel', disabled: !editable }, [1, 2, 3].map((n) => h('option', { value: String(n), selected: n === u.nivel }, `Nivel ${n}`))),
+          h('input', { type: 'text', placeholder: 'Nota para el equipo', value: u.nota ?? '', 'aria-label': 'Nota', ...ro }),
+          editable ? h('button', { class: 'boton peligro chico', type: 'button', onclick: () => fila.remove() }, 'Quitar') : h('span'));
+        umbrales.append(fila);
+      };
+      (p.umbrales_alerta ?? []).forEach(filaUmbral);
+      const form = h('form', { class: 'bloque' },
+        h('p', { class: 'suave' }, editable ? 'El compañero lee este plan antes de cada conversación y lo aplica con prioridad, solo por debajo de las reglas de seguridad. Nunca menciona la hipótesis clínica a la persona.' : 'Solo el psicólogo supervisor edita el plan.'),
+        ...area('pl-formulacion', 'Formulación del caso', null, p.formulacion),
+        ...area('pl-hipotesis', 'Diagnóstico o hipótesis clínica', 'el compañero nunca la menciona', p.hipotesis),
+        ...area('pl-objetivos', 'Objetivos terapéuticos', 'uno por línea', (p.objetivos ?? []).join('\n')),
+        ...area('pl-tecnicas', 'Técnicas indicadas', 'una por línea', (p.tecnicas_indicadas ?? []).join('\n')),
+        ...area('pl-evitar', 'Técnicas o temas a evitar', 'uno por línea', (p.evitar ?? []).join('\n')),
+        ...area('pl-explorar', 'Temas a explorar', 'uno por línea', (p.temas_a_explorar ?? []).join('\n')),
+        ...area('pl-indicaciones', 'Indicaciones para el compañero', null, p.indicaciones_para_el_agente),
+        ...area('pl-nomencionar', 'Palabras que el compañero no debe decir', 'una por línea; el guardián las bloquea', (p.no_mencionar ?? []).join('\n')),
+        h('h3', {}, 'Umbrales de alerta personalizados'),
+        h('p', { class: 'suave' }, 'Se suman a las reglas generales. Ante una de estas frases se dispara una alerta del nivel indicado.'),
+        umbrales,
+        editable ? h('button', { class: 'boton sec chico', type: 'button', onclick: () => filaUmbral() }, 'Agregar umbral') : null,
+        h('div', { class: 'fila' }, h('div', {}, ...campo('pl-revision', 'Próxima revisión', { type: 'date', value: p.proxima_revision ?? '', ...ro }))),
+        editable ? h('div', {}, ...campo('pl-motivo', 'Motivo del cambio', { required: true, minlength: 5, placeholder: 'Queda registrado con su nombre y la fecha' })) : null,
+        editable ? h('div', { class: 'acciones' }, h('button', { class: 'boton' }, plan ? 'Guardar nueva versión' : 'Guardar plan'), h('span', { class: 'ok', id: 'pl-ok', role: 'status' })) : null,
+        h('p', { class: 'error', id: 'pl-error', role: 'alert' }));
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault(); $('pl-error').textContent = '';
+        const contenido = {
+          formulacion: $('pl-formulacion').value, hipotesis: $('pl-hipotesis').value,
+          objetivos: lineas($('pl-objetivos').value), tecnicas_indicadas: lineas($('pl-tecnicas').value), evitar: lineas($('pl-evitar').value),
+          temas_a_explorar: lineas($('pl-explorar').value), indicaciones_para_el_agente: $('pl-indicaciones').value, no_mencionar: lineas($('pl-nomencionar').value),
+          umbrales_alerta: [...umbrales.children].map((fila, i) => { const [frase, nivel, nota] = fila.querySelectorAll('input, select'); return { id: fila.dataset.id || `umbral-${Date.now().toString(36)}-${i}`, frase: frase.value.trim(), nivel: Number(nivel.value), ...(nota.value.trim() ? { nota: nota.value.trim() } : {}) }; }).filter((u) => u.frase),
+          proxima_revision: $('pl-revision').value || null,
+        };
+        try {
+          const r = await api('PUT', `/api/personas/${f.id}/plan-terapeutico`, { contenido, motivo: $('pl-motivo').value, versionBase: plan?.version ?? null });
+          $('pl-ok').textContent = `Versión ${r.version} guardada`;
+          setTimeout(() => PESTANAS.plan(z, f), 900);
+        } catch (e) { $('pl-error').textContent = e.message.includes('versión') ? 'Otra persona guardó el plan mientras usted editaba. Recargue la pestaña para ver su versión.' : e.message; }
+      });
+      const historial = versiones.length ? h('ul', { class: 'lista-simple' }, versiones.map((v) => h('li', {}, h('div', {}, h('strong', {}, `Versión ${v.version}`), ` · ${v.autor} · ${fechaHora(v.creadoEn)}`, h('br'), h('span', { class: 'suave' }, v.motivo))))) : h('p', { class: 'suave' }, 'Todavía no hay plan. Mientras tanto, el compañero sigue solo las reglas generales.');
+      z.replaceChildren(form, h('div', { class: 'bloque' }, h('h2', {}, 'Historial de cambios'), historial));
+    },
+
+    async salud(z, f) {
+      const desde = new Date(Date.now() - 7 * 864e5).toISOString();
+      const [{ medicamentos }, { citas }, { dosis }] = await Promise.all([
+        api('GET', `/api/personas/${f.id}/medicamentos?todos=true`), api('GET', `/api/personas/${f.id}/citas`), api('GET', `/api/personas/${f.id}/dosis?desde=${encodeURIComponent(desde)}`)]);
+      const cerradas = dosis.filter((d) => ['confirmada', 'omitida', 'sin_respuesta'].includes(d.estado));
+      const confirmadas = cerradas.filter((d) => d.estado === 'confirmada').length;
+      const adherencia = cerradas.length ? h('p', {}, h('strong', {}, `${Math.round((confirmadas / cerradas.length) * 100)} %`), ` de las dosis confirmadas en los últimos 7 días (${confirmadas} de ${cerradas.length}).`) : h('p', { class: 'suave' }, 'Sin dosis registradas en los últimos 7 días.');
+      const meds = medicamentos.map((m) => h('li', {},
+        h('div', {}, h('strong', {}, m.nombre), m.propositoSimple ? ` (${m.propositoSimple})` : '', h('br'), h('span', { class: 'suave' }, `${m.dosisTexto} · ${m.horarios.join(', ')}${m.vigente ? '' : ' · suspendido'}`)),
+        m.vigente ? h('button', { class: 'boton peligro chico', type: 'button', onclick: () => suspender(f, m) }, 'Suspender') : null));
+      const listaCitas = citas.map((ci) => h('li', {},
+        h('div', {}, h('strong', {}, fechaHora(ci.fecha)), ` · ${ci.lugar}`, h('br'), h('span', { class: 'suave' }, [ci.profesional, ci.motivo].filter(Boolean).join(' · ') || 'Sin detalle')),
+        h('div', { class: 'acciones', style: 'margin:0' },
+          h('button', { class: 'boton sec chico', type: 'button', onclick: () => verHoja(f, ci) }, 'Hoja para el control'),
+          h('button', { class: 'boton peligro chico', type: 'button', onclick: async () => { if (!confirm('¿Cancelar esta cita?')) return; await api('POST', `/api/personas/${f.id}/citas/${ci.id}/cancelar`); PESTANAS.salud(z, f); } }, 'Cancelar'))));
+      z.replaceChildren(
+        h('div', { class: 'bloque' }, h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Medicación'), h('button', { class: 'boton', type: 'button', onclick: () => nuevoMedicamento(f, () => PESTANAS.salud(z, f)) }, 'Agregar medicamento')),
+          h('p', { class: 'suave' }, 'El compañero la recuerda a la hora indicada y nunca sugiere cambiar, saltar ni duplicar dosis.'), adherencia,
+          meds.length ? h('ul', { class: 'lista-simple' }, meds) : h('p', { class: 'suave' }, 'Sin medicamentos registrados.')),
+        h('div', { class: 'bloque' }, h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Próximas citas'), h('button', { class: 'boton', type: 'button', onclick: () => nuevaCita(f, () => PESTANAS.salud(z, f)) }, 'Agregar cita')),
+          listaCitas.length ? h('ul', { class: 'lista-simple' }, listaCitas) : h('p', { class: 'suave' }, 'Sin citas próximas.')));
+    },
+
+    async memoria(z, f) {
+      const { hechos, conversaciones } = await api('GET', `/api/personas/${f.id}/memoria`);
+      const porCapa = {};
+      for (const x of hechos) (porCapa[x.capa] ??= []).push(x);
+      const bloques = Object.entries(porCapa).map(([capa, xs]) => h('div', {}, h('h3', {}, CAPAS[capa] ?? capa),
+        h('ul', { class: 'lista-simple' }, xs.map((x) => h('li', {}, h('div', {}, x.contenido, ' ', x.privado ? h('span', { class: 'privado' }, 'privado') : null, x.estado === 'por_confirmar' ? h('span', { class: 'suave' }, ' (por confirmar con la persona)') : null))))));
+      z.replaceChildren(
+        h('div', { class: 'bloque' }, h('h2', {}, 'Lo que el compañero recuerda'),
+          h('p', { class: 'suave' }, 'La persona puede verlo, corregirlo y pedir que se olvide desde su tablet. Lo marcado como privado nunca llega al panel familiar.'),
+          bloques.length ? bloques : h('p', { class: 'suave' }, 'Todavía no hay recuerdos guardados.')),
+        h('div', { class: 'bloque' }, h('h2', {}, 'Resumen de conversaciones recientes'),
+          conversaciones.length ? h('ul', { class: 'lista-simple' }, conversaciones.map((x) => h('li', {}, h('div', {}, h('strong', {}, fecha(x.fecha)), h('br'), x.resumen, x.temasPendientes?.length ? h('div', { class: 'suave' }, `Pendiente: ${x.temasPendientes.join('; ')}`) : null)))) : h('p', { class: 'suave' }, 'Sin resúmenes todavía.')));
+    },
+
+    async datosClinico(z, f) {
+      z.replaceChildren(
+        h('div', { class: 'bloque' }, h('h2', {}, 'Contactos'), f.contactos.length ? h('ul', { class: 'lista-simple' }, f.contactos.map((k) => h('li', {}, h('div', {}, h('strong', {}, k.nombre), ` (${k.relacion})`, h('br'), h('span', { class: 'suave' }, [k.telefono, k.esCuidador ? 'cuidador/a' : null].filter(Boolean).join(' · ')))))) : h('p', { class: 'suave' }, 'Sin contactos.')),
+        h('div', { class: 'bloque' }, h('h2', {}, 'Equipo'), h('ul', { class: 'lista-simple' }, f.equipo.map((x) => h('li', {}, `${x.nombre} · ${ROLES[x.rol]}`)))),
+        h('div', { class: 'bloque' }, h('h2', {}, 'Consentimiento y tablet'),
+          h('p', {}, f.consentimientoVigenteHasta ? `Consentimiento vigente hasta el ${fecha(f.consentimientoVigenteHasta)}.` : h('span', { class: 'aviso' }, 'Sin consentimiento vigente registrado.')),
+          h('p', {}, f.dispositivos.some((d) => !d.revocadoEn) ? `Tablet activa, último uso ${hace(f.dispositivos.find((d) => !d.revocadoEn).ultimoUsoEn)}.` : h('span', { class: 'aviso' }, 'Sin tablet activa.')),
+          h('p', { class: 'suave' }, 'Los cambios en estos datos los hace administración.')));
+    },
+  };
+
+  const TIPOS_CONSENTIMIENTO = { participacion_piloto: 'Participación en el piloto', datos_sensibles: 'Tratamiento de datos de salud y emocionales', supervision_clinica: 'Supervisión por psicólogo', aviso_riesgo_vital: 'Aviso a terceros ante riesgo vital' };
+  const permisosTexto = (p = {}) => [p.resumen_bienestar ? 'resumen de bienestar' : null, p.avisos_medicacion ? 'avisos de medicación' : null, p.hoja_control ? 'hoja para el control' : null].filter(Boolean).join(', ') || 'nada (solo avisos de emergencia si es cuidador)';
+
+  function editarContacto(f, k) {
+    const marca = (id, texto, valor) => h('label', { class: 'check' }, h('input', { type: 'checkbox', id, checked: !!valor }), texto);
+    dialogo(k ? 'Editar contacto' : 'Agregar contacto', [
+      h('div', { class: 'fila' }, h('div', {}, ...campo('k-nombre', 'Nombre', { value: k?.nombre ?? '', required: true })), h('div', {}, ...campo('k-relacion', 'Relación', { value: k?.relacion ?? '', required: true, placeholder: 'hija, vecino, amiga' }))),
+      h('div', { class: 'fila' }, h('div', {}, ...campo('k-telefono', 'Teléfono', { value: k?.telefono ?? '', placeholder: '+56 9 1234 5678', type: 'tel' })), h('div', {}, ...campo('k-prioridad', 'Prioridad en emergencias', { type: 'number', min: 1, max: 10, value: k?.prioridadEmergencia ?? '' }))),
+      marca('k-cuidador', 'Es cuidador/a: recibe los avisos de emergencia', k?.esCuidador),
+      h('h3', {}, 'Lo que la persona autorizó que vea'),
+      marca('k-p-resumen', 'Resumen de bienestar (nunca transcripciones)', k?.permisos?.resumen_bienestar),
+      marca('k-p-medicacion', 'Avisos de medicación no confirmada', k?.permisos?.avisos_medicacion),
+      marca('k-p-hoja', 'Hoja para el control médico', k?.permisos?.hoja_control),
+    ], k ? 'Guardar' : 'Agregar', async () => {
+      const cuerpo = {
+        nombre: $('k-nombre').value, relacion: $('k-relacion').value, esCuidador: $('k-cuidador').checked,
+        permisos: { resumen_bienestar: $('k-p-resumen').checked, avisos_medicacion: $('k-p-medicacion').checked, hoja_control: $('k-p-hoja').checked },
+      };
+      const tel = $('k-telefono').value.trim(); const pri = $('k-prioridad').value;
+      if (k) await api('PUT', `/api/personas/${f.id}/contactos/${k.id}`, { ...cuerpo, telefono: tel || null, prioridadEmergencia: pri ? Number(pri) : null });
+      else await api('POST', `/api/personas/${f.id}/contactos`, { ...cuerpo, ...(tel ? { telefono: tel } : {}), ...(pri ? { prioridadEmergencia: Number(pri) } : {}) });
+      ir('ficha', f.id);
+    });
+  }
+  async function bajaContacto(f, k) {
+    if (!confirm(`¿Dar de baja a ${k.nombre}? Dejará de recibir avisos y, si tiene acceso familiar, se cerrará. El historial de alertas se conserva.`)) return;
+    await api('DELETE', `/api/personas/${f.id}/contactos/${k.id}`);
+    ir('ficha', f.id);
+  }
+  function nuevaTablet(f) {
+    dialogo('Crear código de la tablet', [...campo('t-nombre', 'Nombre de la tablet', { value: `Tablet de ${f.nombre.split(' ')[0]}`, required: true })], 'Crear código', async (form) => {
+      const r = await api('POST', `/api/personas/${f.id}/dispositivos`, { nombre: $('t-nombre').value });
+      form.replaceChildren(h('h2', {}, 'Código de la tablet'),
+        h('p', {}, 'Anótelo ahora: no se vuelve a mostrar. En la tablet, abra la página /tablet e ingréselo.'),
+        h('div', { class: 'codigo' }, r.token),
+        h('div', { class: 'acciones' }, h('button', { class: 'boton', type: 'button', onclick: () => navigator.clipboard?.writeText(r.token) }, 'Copiar código'), h('button', { class: 'boton sec', value: 'cancelar' }, 'Listo')));
+      $('dialogo').addEventListener('close', () => ir('ficha', f.id), { once: true });
+      return false;
+    });
+  }
+  async function revocar(f, d) {
+    if (!confirm(`¿Revocar "${d.nombre}"? Deja de funcionar de inmediato.`)) return;
+    await api('POST', `/api/personas/${f.id}/dispositivos/${d.id}/revocar`);
+    ir('ficha', f.id);
+  }
+  function registrarConsentimiento(f) {
+    const contactos = Object.fromEntries(f.contactos.map((k) => [k.id, `${k.nombre} (${k.relacion})`]));
+    const enSeisMeses = new Date(Date.now() + 182 * 864e5).toISOString().slice(0, 10);
+    dialogo('Registrar consentimiento', [
+      ...selector('c-tipo', 'Tipo', TIPOS_CONSENTIMIENTO, 'participacion_piloto'),
+      h('div', { class: 'fila' }, h('div', {}, ...campo('c-version', 'Versión del documento', { value: '1.0', required: true })), h('div', {}, ...campo('c-vigencia', 'Vigente hasta', { type: 'date', value: enSeisMeses }))),
+      ...selector('c-por', 'Lo otorgó', { persona: 'La persona', representante_legal: 'Su representante legal' }, 'persona'),
+      ...(f.contactos.length ? selector('c-contacto', 'Representante legal', contactos) : [h('p', { class: 'suave' }, 'Para registrar un representante legal, primero agréguelo como contacto.')]),
+      h('p', { class: 'suave', style: 'margin-top:12px' }, 'Registre solo un consentimiento firmado. El documento físico se guarda según el protocolo del piloto.'),
+    ], 'Registrar', async () => {
+      const porRep = $('c-por').value === 'representante_legal';
+      await api('POST', `/api/personas/${f.id}/consentimientos`, { tipo: $('c-tipo').value, version: $('c-version').value, otorgadoPor: $('c-por').value, contactoId: porRep ? ($('c-contacto')?.value ?? null) : null, vigenteHasta: $('c-vigencia').value || null });
+      ir('ficha', f.id);
+    });
+  }
+  function nuevoMedicamento(f, listo) {
+    dialogo('Agregar medicamento', [
+      ...campo('m-nombre', 'Nombre', { required: true, placeholder: 'Losartán' }),
+      ...campo('m-proposito', 'Para qué es, en palabras de la persona', { placeholder: 'para la presión' }),
+      h('div', { class: 'fila' }, h('div', {}, ...campo('m-dosis', 'Dosis indicada', { required: true, placeholder: '1 comprimido' })), h('div', {}, ...campo('m-horarios', 'Horarios', { required: true, placeholder: '08:00, 20:00' }))),
+      h('p', { class: 'suave', style: 'margin-top:12px' }, 'Tal como lo indicó el médico. El compañero solo recuerda; nunca ajusta dosis.'),
+    ], 'Agregar', async () => {
+      const horarios = $('m-horarios').value.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean).map((x) => x.length === 4 ? `0${x}` : x);
+      await api('POST', `/api/personas/${f.id}/medicamentos`, { nombre: $('m-nombre').value, propositoSimple: $('m-proposito').value || null, dosisTexto: $('m-dosis').value, horarios });
+      listo();
+    });
+  }
+  function suspender(f, m) {
+    dialogo(`Suspender ${m.nombre}`, [...campo('s-motivo', 'Motivo', { required: true, minlength: 5, placeholder: 'Indicación del médico tratante del …' })], 'Suspender', async () => {
+      await api('POST', `/api/personas/${f.id}/medicamentos/${m.id}/suspender`, { motivo: $('s-motivo').value });
+      ir('ficha', f.id);
+    });
+  }
+  function nuevaCita(f, listo) {
+    dialogo('Agregar cita', [
+      ...campo('ci-lugar', 'Lugar', { required: true, placeholder: 'CESFAM Puerto Varas' }),
+      h('div', { class: 'fila' }, h('div', {}, ...campo('ci-fecha', 'Fecha y hora', { type: 'datetime-local', required: true })), h('div', {}, ...campo('ci-prof', 'Profesional', { placeholder: 'Dra. Pérez' }))),
+      ...campo('ci-motivo', 'Motivo', { placeholder: 'Control de presión' }),
+    ], 'Agregar', async () => {
+      await api('POST', `/api/personas/${f.id}/citas`, { lugar: $('ci-lugar').value, profesional: $('ci-prof').value || null, fecha: new Date($('ci-fecha').value).toISOString(), motivo: $('ci-motivo').value || null });
+      listo();
+    });
+  }
+  async function verHoja(f, ci) {
+    const r = await fetch(`/api/personas/${f.id}/citas/${ci.id}/hoja`, { headers: { authorization: `Bearer ${token}` } });
+    if (!r.ok) return alert('No se pudo abrir la hoja.');
+    const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html' }));
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+  function abrirTranscripcion(f, s) {
+    dialogo('Abrir transcripción', [
+      h('p', {}, `Sesión del ${fechaHora(s.inicio)}. La transcripción completa se abre solo por un motivo clínico; su acceso queda registrado con su nombre.`),
+      ...campo('tr-motivo', 'Motivo clínico', { required: true, minlength: 10, multilinea: true }),
+    ], 'Abrir', async (form) => {
+      const { turnos } = await api('GET', `/api/personas/${f.id}/sesiones/${s.id}/transcripcion?motivo=${encodeURIComponent($('tr-motivo').value)}`);
+      form.replaceChildren(h('h2', {}, `Transcripción · ${fechaHora(s.inicio)}`),
+        ...turnos.map((t) => h('div', { class: `turno ${t.hablante}` }, h('small', {}, `${t.hablante === 'persona' ? f.nombre.split(' ')[0] : ORIGEN[t.origen] ?? 'compañero'} · ${fechaHora(t.creadoEn)}`), t.texto)),
+        h('div', { class: 'acciones' }, h('button', { class: 'boton sec', value: 'cancelar' }, 'Cerrar')));
+      return false;
+    });
+  }
+  async function verAlerta(id, despues) {
+    const a = await api('GET', `/api/alertas/${id}`);
+    dialogo(`Alerta de nivel ${a.nivel}`, [
+      h('p', {}, `${fechaHora(a.creadoEn)} · señales: ${senales(a.categorias)}`),
+      h('div', { class: 'fragmento' }, a.fragmento),
+      h('p', { class: 'suave' }, a.acusadoEn ? `Acusada el ${fechaHora(a.acusadoEn)}.` : 'Acusar recibo detiene la cadena de avisos. Hágalo cuando ya esté a cargo.'),
+    ], a.acusadoEn ? null : 'Acusar recibo', async () => {
+      await api('POST', `/api/alertas/${id}/acuse`);
+      contarAlertas();
+      despues?.();
+    });
+  }
+
+  // ── Alertas ─────────────────────────────────────────────────────────────────────
+  async function vistaAlertas(c) {
+    let pendientes = true;
+    const zona = h('div');
+    const conmutar = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: true, onchange: (ev) => { pendientes = ev.target.checked; pintar(); } }), 'Solo sin acuse');
+    async function pintar() {
+      const { alertas } = await api('GET', `/api/alertas?pendientes=${pendientes}`);
+      zona.replaceChildren(alertas.length ? h('table', { class: 'tabla' },
+        h('thead', {}, h('tr', {}, ['Nivel', 'Persona', 'Cuándo', 'Señales', 'Origen', ''].map((x) => h('th', { class: x === 'Origen' ? 'opcional' : null }, x)))),
+        h('tbody', {}, alertas.map((a) => h('tr', { class: a.acusado_en ? null : 'pendiente' },
+          h('td', {}, h('span', { class: 'nivel', dataset: { n: String(a.nivel) } }, `Nivel ${a.nivel}`)),
+          h('td', {}, h('strong', {}, a.persona_nombre)), h('td', {}, `${fechaHora(a.creado_en)} (${hace(a.creado_en)})`),
+          h('td', {}, senales(a.categorias)), h('td', { class: 'opcional' }, FUENTES[a.fuente] ?? a.fuente),
+          h('td', {}, h('button', { class: a.acusado_en ? 'boton sec chico' : 'boton chico', type: 'button', onclick: () => verAlerta(a.id, pintar) }, a.acusado_en ? 'Ver' : 'Ver y acusar'))))))
+        : h('div', { class: 'vacio' }, pendientes ? 'No hay alertas sin acuse.' : 'No hay alertas registradas.'));
+    }
+    c.replaceChildren(h('div', { class: 'cabeza' }, h('div', {}, h('h1', {}, 'Alertas'),
+      h('p', { class: 'suave' }, esGuardia() ? 'Alertas de nivel 2 y 3 de todas las personas del piloto.' : 'Alertas de nivel 2 y 3 de sus personas asignadas. Ver el fragmento queda registrado.')), conmutar), zona);
+    await pintar();
+  }
+
+  // ── Equipo (administración) ─────────────────────────────────────────────────────
+  async function vistaEquipo(c) {
+    const { cuentas } = await api('GET', '/api/cuentas');
+    const filas = cuentas.map((x) => h('tr', {},
+      h('td', {}, h('strong', {}, x.nombre), h('br'), h('span', { class: 'suave' }, x.email)), h('td', {}, ROLES[x.rol] ?? x.rol), h('td', { class: 'opcional' }, x.institucion ?? '—'),
+      h('td', { class: 'opcional' }, ['admin_plataforma', 'guardia'].includes(x.rol) ? '—' : String(x.personas)), h('td', {}, x.activa ? 'Activa' : h('span', { class: 'aviso' }, 'Desactivada')),
+      h('td', {}, x.id === yo.id ? null : h('button', { class: x.activa ? 'boton peligro chico' : 'boton sec chico', type: 'button', onclick: async () => {
+        if (x.activa && !confirm(`¿Desactivar la cuenta de ${x.nombre}? Se cierran sus sesiones abiertas.`)) return;
+        await api('PUT', `/api/cuentas/${x.id}/activa`, { activa: !x.activa }); ir('equipo');
+      } }, x.activa ? 'Desactivar' : 'Reactivar'))));
+    c.replaceChildren(
+      h('div', { class: 'cabeza' }, h('div', {}, h('h1', {}, 'Equipo'), h('p', { class: 'suave' }, 'Cuentas del equipo. La contraseña inicial se entrega en persona; cada profesional ve solo a las personas que usted le asigne.')),
+        h('button', { class: 'boton', type: 'button', onclick: nuevaCuenta }, 'Crear cuenta')),
+      h('table', { class: 'tabla' }, h('thead', {}, h('tr', {}, h('th', {}, 'Nombre'), h('th', {}, 'Rol'), h('th', { class: 'opcional' }, 'Institución'), h('th', { class: 'opcional' }, 'Personas'), h('th', {}, 'Estado'), h('th', {}, ''))), h('tbody', {}, filas)));
+  }
+  function nuevaCuenta() {
+    dialogo('Crear cuenta del equipo', [
+      h('div', { class: 'fila' }, h('div', {}, ...campo('u-nombre', 'Nombre', { required: true })), h('div', {}, ...campo('u-email', 'Correo', { type: 'email', required: true }))),
+      h('div', { class: 'fila' }, h('div', {}, ...selector('u-rol', 'Rol', ROLES, 'supervisor_clinico')), h('div', {}, ...campo('u-inst', 'Institución', { placeholder: 'CESFAM, universidad…' }))),
+      ...campo('u-pass', 'Contraseña inicial', { type: 'password', required: true, minlength: 12, autocomplete: 'new-password' }),
+      h('p', { class: 'suave', style: 'margin-top:8px' }, 'Al menos 12 caracteres. Entréguela en persona, nunca por correo ni chat.'),
+    ], 'Crear cuenta', async () => {
+      await api('POST', '/api/cuentas', { tipo: 'personal', nombre: $('u-nombre').value, email: $('u-email').value, rol: $('u-rol').value, contrasena: $('u-pass').value, ...($('u-inst').value ? { institucion: $('u-inst').value } : {}) });
+      ir('equipo');
+    });
+  }
+
+  iniciar();
+})();
+</script>
+</body>
+</html>

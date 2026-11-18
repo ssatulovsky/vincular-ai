@@ -162,6 +162,18 @@ describe('cadena de escalamiento', () => {
     await e.owner.query(`UPDATE escalamiento SET estado = 'cancelado' WHERE id = $1`, [id2]);
   });
 
+  it('un contacto dado de baja no recibe avisos, ni en riesgo vital', async () => {
+    await e.owner.query('UPDATE contacto SET dado_de_baja_en = now() WHERE id = $1', [e.ids.contacto]);
+    try {
+      const id = (await iniciarEscalamiento(e.app.bd, { personaId: e.ids.persona, tipoEvento: 'riesgo', nivel: 3, categorias: ['signos_acv'], ahora: new Date('2030-03-11T15:00:00Z') }))!;
+      await cicloEscalamiento(e.app.escalamiento, new Date('2030-03-11T15:00:01Z'));
+      expect((await notificaciones(id)).some((x) => x.destinatario_contacto_id === e.ids.contacto)).toBe(false);
+      await e.owner.query(`UPDATE escalamiento SET estado = 'cancelado' WHERE id = $1`, [id]);
+    } finally {
+      await e.owner.query('UPDATE contacto SET dado_de_baja_en = NULL WHERE id = $1', [e.ids.contacto]);
+    }
+  });
+
   it('un evento de mayor nivel reemplaza la cadena en curso; uno de igual nivel se suma a ella', async () => {
     const a = (await iniciarEscalamiento(e.app.bd, { personaId: e.ids.personaAjena, tipoEvento: 'riesgo', nivel: 2, categorias: ['caida'], ahora: new Date() }))!;
     expect(await iniciarEscalamiento(e.app.bd, { personaId: e.ids.personaAjena, tipoEvento: 'riesgo', nivel: 2, categorias: ['estafa'], ahora: new Date() })).toBe(a);
