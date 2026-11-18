@@ -1,5 +1,5 @@
 /**
- * Avatar animado dentro del agente de tiempo real (decisión 0016).
+ * Avatar animado dentro del agente de tiempo real (decisiones 0016 y 0017: Simli o LemonSlice).
  *
  * Con avatar, la voz del compañero ya no sale directo a la sala: va al proveedor, que la devuelve
  * junto al video de la cara hablando. Eso crea un punto de falla nuevo, así que aquí todo está
@@ -11,7 +11,10 @@
 import { voice } from '@livekit/agents';
 import * as lemonslice from '@livekit/agents-plugin-lemonslice';
 import { RoomEvent, TrackKind, TrackPublishOptions, TrackSource, type RemoteParticipant, type RemoteTrackPublication, type Room } from '@livekit/rtc-node';
+import { RoomServiceClient } from 'livekit-server-sdk';
 import type { Aplicacion } from '../api/servidor.ts';
+import { caraSimliParaSesion } from '../companero/caras.ts';
+import { AvatarSimli } from './avatarSimli.ts';
 import {
   abrirUsoAvatar,
   cerrarUsoAvatar,
@@ -41,10 +44,13 @@ export async function encenderAvatar(e: {
   avatarId: string | null;
   modoEmergencia: boolean;
   registro: Registro;
+  /** Para pruebas: recibe los trabajos en segundo plano (construcción de caras). */
+  trabajos?: Array<Promise<void>>;
 }): Promise<(() => Promise<void>) | null> {
   const { app, room, sesion, registro } = e;
   const config = app.config.avatarAnimado;
-  if (!config && process.env.AVATAR_ANIMADO === 'lemonslice') registro('agente.avatar_sin_configuracion', { faltan: 'LEMONSLICE_API_KEY o LIVEKIT_URL_PUBLICA' });
+  const pedido = process.env.AVATAR_ANIMADO;
+  if (!config && (pedido === 'lemonslice' || pedido === 'simli')) registro('agente.avatar_sin_configuracion', { faltan: `${pedido === 'simli' ? 'SIMLI_API_KEY' : 'LEMONSLICE_API_KEY'} o LIVEKIT_URL_PUBLICA` });
 
   const minutosHoy = config ? await minutosAvatarHoy(app.bd, e.personaId) : 0;
   const decision = decidirAvatar({ config, avatarId: e.avatarId, modoEmergencia: e.modoEmergencia, minutosHoy });
@@ -52,28 +58,51 @@ export async function encenderAvatar(e: {
     if (decision.motivo !== 'sin_configuracion') registro('agente.avatar_omitido', { motivo: decision.motivo, minutosHoy: Math.round(minutosHoy) });
     return null;
   }
-  const retrato = await leerImagenAvatar(app.bd, e.personaId, e.avatarId!);
-  if (!retrato) {
-    registro('agente.avatar_omitido', { motivo: 'sin_retrato' });
-    return null;
+  const tr = app.config.tiempoReal!;
+  // El proveedor entra a la sala desde internet: necesita la URL pública (wss://), no la interna.
+  const livekit = { url: tr.urlPublica, apiKey: tr.apiKey, apiSecret: tr.apiSecret };
+  let avatar: voice.AvatarSession;
+  let arrancar: () => Promise<unknown>;
+  let caraDePrueba = false;
+
+  if (config!.proveedor === 'simli') {
+    const c = config!;
+    const acceso = { apiKey: c.apiKey, apiUrl: c.apiUrl };
+    const cara = await caraSimliParaSesion({ bd: app.bd, acceso, caraPrueba: c.caraPrueba, personaId: e.personaId, avatarId: e.avatarId!, registro, ...(e.trabajos ? { trabajos: e.trabajos } : {}) });
+    if (!cara) {
+      registro('agente.avatar_omitido', { motivo: 'cara_en_preparacion' });
+      return null;
+    }
+    caraDePrueba = !cara.propia;
+    // Simli corta la sesión al llegar al tope: nunca más que lo que le queda del día (ni más de 30 min).
+    const maxSesionS = Math.max(60, Math.min(30 * 60, Math.floor((c.maxMinutosDia - minutosHoy) * 60)));
+    const simli = new AvatarSimli(acceso, { caraId: cara.caraId, maxSesionS, maxInactividadS: c.inactividadS, zoom: c.zoom }, livekit, IDENTIDAD_AVATAR);
+    avatar = simli;
+    arrancar = () => simli.start(sesion, room);
+  } else {
+    const retrato = await leerImagenAvatar(app.bd, e.personaId, e.avatarId!);
+    if (!retrato) {
+      registro('agente.avatar_omitido', { motivo: 'sin_retrato' });
+      return null;
+    }
+    const ls = new lemonslice.AvatarSession({
+      agentImage: retrato.imagen,
+      agentImageMimeType: retrato.mime,
+      agentPrompt: GESTOS_AL_HABLAR,
+      agentIdlePrompt: GESTOS_AL_ESCUCHAR,
+      idleTimeout: config!.inactividadS,
+      apiKey: config!.apiKey,
+      avatarParticipantIdentity: IDENTIDAD_AVATAR,
+      avatarParticipantName: 'avatar',
+      connOptions: { maxRetry: 1, retryIntervalMs: 1000, timeoutMs: 10_000 },
+    });
+    avatar = ls;
+    arrancar = () => ls.start(sesion, room, { livekitUrl: livekit.url, livekitApiKey: livekit.apiKey, livekitApiSecret: livekit.apiSecret });
   }
 
-  const tr = app.config.tiempoReal!;
   const usoId = await abrirUsoAvatar(app.bd, e.personaId, e.sesionId, config!.proveedor);
-  const avatar = new lemonslice.AvatarSession({
-    agentImage: retrato.imagen,
-    agentImageMimeType: retrato.mime,
-    agentPrompt: GESTOS_AL_HABLAR,
-    agentIdlePrompt: GESTOS_AL_ESCUCHAR,
-    idleTimeout: config!.inactividadS,
-    apiKey: config!.apiKey,
-    avatarParticipantIdentity: IDENTIDAD_AVATAR,
-    avatarParticipantName: 'avatar',
-    connOptions: { maxRetry: 1, retryIntervalMs: 1000, timeoutMs: 10_000 },
-  });
   try {
-    // El proveedor entra a la sala desde internet: necesita la URL pública (wss://), no la interna.
-    await avatar.start(sesion, room, { livekitUrl: tr.urlPublica, livekitApiKey: tr.apiKey, livekitApiSecret: tr.apiSecret });
+    await arrancar();
   } catch (err) {
     const mensaje = (err as Error).message;
     registro('agente.avatar_falla_inicio', { error: mensaje.slice(0, 200) });
@@ -83,7 +112,13 @@ export async function encenderAvatar(e: {
     await avatar.aclose().catch(() => undefined);
     return null;
   }
-  registro('agente.avatar_encendido', { proveedor: config!.proveedor, minutosHoy: Math.round(minutosHoy) });
+  registro('agente.avatar_encendido', { proveedor: config!.proveedor, minutosHoy: Math.round(minutosHoy), ...(caraDePrueba ? { caraDePrueba: true } : {}) });
+
+  // Al terminar, el avatar sale de la sala de inmediato (si no, el proveedor espera su inactividad cobrando).
+  const sacarDeLaSala = async () => {
+    if (!room.name) return;
+    await new RoomServiceClient(tr.urlInterna, tr.apiKey, tr.apiSecret).removeParticipant(room.name, IDENTIDAD_AVATAR).catch(() => undefined);
+  };
 
   let activo = true;
   const volverAVozDirecta = async (motivo: 'desconectado' | 'sin_video') => {
@@ -106,6 +141,7 @@ export async function encenderAvatar(e: {
       registro('agente.avatar_sin_voz_directa', { error: (err as Error).message.slice(0, 200) });
     }
     await cerrarUsoAvatar(app.bd, usoId, motivo);
+    await sacarDeLaSala();
     await avatar.aclose().catch(() => undefined);
   };
 
@@ -128,5 +164,6 @@ export async function encenderAvatar(e: {
     clearTimeout(vigia);
     room.off(RoomEvent.ParticipantDisconnected, alSalir);
     await cerrarUsoAvatar(app.bd, usoId, 'fin_sesion');
+    await sacarDeLaSala();
   };
 }

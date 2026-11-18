@@ -5,6 +5,8 @@ import { crearAplicacion, type Aplicacion } from '../src/api/servidor.ts';
 import { encenderAvatar } from '../src/agente/avatar.ts';
 import { cargarConfig } from '../src/config/config.ts';
 import { abrirUsoAvatar, cerrarUsoAvatar, decidirAvatar, minutosAvatarDelMes, minutosAvatarHoy, type ConfigAvatarAnimado } from '../src/companero/avatarAnimado.ts';
+import { crearCaraSimli, ErrorSimli, tokenSesionSimli } from '../src/companero/simli.ts';
+import { caraSimliParaSesion, debePedirse, estadoCaraDePersona } from '../src/companero/caras.ts';
 import { configDePrueba, crearEscenario, type Escenario } from './escenario.ts';
 
 const CONFIG: ConfigAvatarAnimado = { proveedor: 'lemonslice', apiKey: 'clave-de-prueba-lemonslice', maxMinutosDia: 20, inactividadS: 45 };
@@ -135,5 +137,137 @@ describe('avatar animado dentro del agente', () => {
     expect(u.rows[0]).toMatchObject({ motivo_fin: 'error_inicio' });
     expect(u.rows[0]!.fin).not.toBeNull();
     expect(u.rows[0]!.error).not.toContain(CONFIG.apiKey);
+  });
+});
+
+// ── Simli ────────────────────────────────────────────────────────────────────────────
+// La API de Simli apunta a un puerto local cerrado: las llamadas fallan de verdad (sin simular).
+const SIMLI_CERRADO = 'http://127.0.0.1:9';
+const CARA_PRUEBA = 'f735e62c-dce7-4c0b-8e85-1c7e21774c45';
+
+describe('Simli: configuración', () => {
+  const base = { DATABASE_URL: 'postgres://x', CLAVE_CIFRADO: 'a'.repeat(64) };
+  const lk = { LIVEKIT_URL_PUBLICA: 'wss://lk.ejemplo.cl', LIVEKIT_URL: 'ws://127.0.0.1:7880', LIVEKIT_API_KEY: 'APIx', LIVEKIT_API_SECRET: 's'.repeat(32) };
+  it('con clave queda encendido, con la API oficial y sin cara de prueba', () => {
+    const c = cargarConfig({ ...base, ...lk, AVATAR_ANIMADO: 'simli', SIMLI_API_KEY: 'clave-larga-de-prueba', SIMLI_CARA_PRUEBA: '', SIMLI_ZOOM: '' });
+    expect(c.avatarAnimado).toEqual({ proveedor: 'simli', apiKey: 'clave-larga-de-prueba', apiUrl: 'https://api.simli.ai', caraPrueba: null, zoom: null, maxMinutosDia: 20, inactividadS: 45 });
+  });
+  it('acepta una cara de prueba del catálogo y el acercamiento', () => {
+    const c = cargarConfig({ ...base, ...lk, AVATAR_ANIMADO: 'simli', SIMLI_API_KEY: 'clave-larga-de-prueba', SIMLI_CARA_PRUEBA: CARA_PRUEBA, SIMLI_ZOOM: '1.6' });
+    expect(c.avatarAnimado).toMatchObject({ caraPrueba: CARA_PRUEBA, zoom: 1.6 });
+  });
+  it('una cara de prueba mal escrita se rechaza al arrancar (no falla en silencio)', () => {
+    expect(() => cargarConfig({ ...base, ...lk, AVATAR_ANIMADO: 'simli', SIMLI_API_KEY: 'clave-larga-de-prueba', SIMLI_CARA_PRUEBA: 'Sara' })).toThrow(/SIMLI_CARA_PRUEBA/);
+  });
+  it('sin clave no se enciende', () => {
+    expect(cargarConfig({ ...base, ...lk, AVATAR_ANIMADO: 'simli', SIMLI_API_KEY: '' }).avatarAnimado).toBeNull();
+  });
+});
+
+describe('Simli: cuándo se pide la cara', () => {
+  const hace = (horas: number) => new Date(Date.now() - horas * 3_600_000);
+  it('se pide si no existe; no se repite mientras se construye o está lista', () => {
+    expect(debePedirse(null)).toBe(true);
+    expect(debePedirse({ estado: 'construyendo', actualizado_en: hace(30) })).toBe(false);
+    expect(debePedirse({ estado: 'lista', actualizado_en: hace(300) })).toBe(false);
+  });
+  it('sin cupo, error o falla: se reintenta al día siguiente, no antes', () => {
+    for (const estado of ['sin_cupo', 'error', 'fallida'] as const) {
+      expect(debePedirse({ estado, actualizado_en: hace(2) })).toBe(false);
+      expect(debePedirse({ estado, actualizado_en: hace(25) })).toBe(true);
+    }
+  });
+  it('una solicitud perdida (más de 15 min) se puede repetir', () => {
+    expect(debePedirse({ estado: 'solicitando', actualizado_en: hace(0.1) })).toBe(false);
+    expect(debePedirse({ estado: 'solicitando', actualizado_en: hace(0.5) })).toBe(true);
+  });
+});
+
+describe('Simli: caras y avatar en el agente', () => {
+  const acceso = { apiKey: 'clave-de-prueba-simli', apiUrl: SIMLI_CERRADO };
+  const CONFIG_SIMLI: ConfigAvatarAnimado = { proveedor: 'simli', ...acceso, caraPrueba: null, zoom: null, maxMinutosDia: 20, inactividadS: 45 };
+  let avatarId: string;
+  let app: Aplicacion;
+  const registro = () => undefined;
+
+  beforeAll(async () => {
+    initializeLogger({ pretty: false, level: 'fatal' });
+    app = crearAplicacion(configDePrueba({ tiempoReal: TR, avatarAnimado: CONFIG_SIMLI }));
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    const r = await e.owner.query<{ id: string }>(
+      `INSERT INTO avatar_propuesta (persona_id, ronda, genero, edad, entorno, imagen, mime, modelo, creado_por) VALUES ($1, gen_random_uuid(), 'masculina', 'mayor', 'living', $2, 'image/png', 'prueba', 'persona') RETURNING id`,
+      [e.ids.persona, png],
+    );
+    avatarId = r.rows[0]!.id;
+  });
+  afterAll(async () => app?.bd.end());
+
+  const fila = async () => (await e.owner.query<{ estado: string; cara_id: string | null; detalle: string | null }>(`SELECT estado, cara_id, detalle FROM cara_avatar WHERE avatar_id = $1`, [avatarId])).rows[0];
+
+  it('la primera conversación pide la cara en segundo plano y sigue con la cara de prueba', async () => {
+    const trabajos: Array<Promise<void>> = [];
+    const r = await caraSimliParaSesion({ bd: app.bd, acceso, caraPrueba: CARA_PRUEBA, personaId: e.ids.persona, avatarId, registro, trabajos });
+    expect(r).toEqual({ caraId: CARA_PRUEBA, propia: false });
+    expect(trabajos).toHaveLength(1);
+    await Promise.all(trabajos);
+    // Simli no respondió: queda registrado, sin la clave, para reintentar mañana.
+    const f = await fila();
+    expect(f).toMatchObject({ estado: 'error', cara_id: null });
+    expect(f!.detalle).toContain('sin conexión');
+    expect(f!.detalle).not.toContain(acceso.apiKey);
+  });
+
+  it('no vuelve a pedirla de inmediato (cuida el cupo de caras del plan)', async () => {
+    const trabajos: Array<Promise<void>> = [];
+    expect(await caraSimliParaSesion({ bd: app.bd, acceso, caraPrueba: null, personaId: e.ids.persona, avatarId, registro, trabajos })).toBeNull();
+    expect(trabajos).toHaveLength(0);
+  });
+
+  it('si no se puede consultar el estado, sigue construyendo y no se pide otra', async () => {
+    await e.owner.query(`UPDATE cara_avatar SET estado = 'construyendo', cara_id = 'cara-en-simli' WHERE avatar_id = $1`, [avatarId]);
+    const trabajos: Array<Promise<void>> = [];
+    expect(await caraSimliParaSesion({ bd: app.bd, acceso, caraPrueba: CARA_PRUEBA, personaId: e.ids.persona, avatarId, registro, trabajos })).toEqual({ caraId: CARA_PRUEBA, propia: false });
+    expect(trabajos).toHaveLength(0);
+    expect(await fila()).toMatchObject({ estado: 'construyendo' });
+  });
+
+  it('con la cara lista se usa la propia, y el panel ve su estado', async () => {
+    await e.owner.query(`UPDATE cara_avatar SET estado = 'lista' WHERE avatar_id = $1`, [avatarId]);
+    expect(await caraSimliParaSesion({ bd: app.bd, acceso, caraPrueba: CARA_PRUEBA, personaId: e.ids.persona, avatarId, registro })).toEqual({ caraId: 'cara-en-simli', propia: true });
+    await e.owner.query(`INSERT INTO perfil_companero (persona_id, nombre, avatar_id) VALUES ($1, 'Rosa', $2) ON CONFLICT (persona_id) DO UPDATE SET avatar_id = $2`, [e.ids.persona, avatarId]);
+    expect((await estadoCaraDePersona(app.bd, e.ids.persona))?.estado).toBe('lista');
+  });
+
+  it('si Simli no acepta la sesión, la conversación sigue con voz directa y queda el error', async () => {
+    const s = await nuevaSesion();
+    const sesion = new voice.AgentSession({});
+    const r = await encenderAvatar({ app, room: new Room(), sesion, personaId: e.ids.persona, sesionId: s, avatarId, modoEmergencia: false, registro });
+    expect(r).toBeNull();
+    expect(sesion.output.audio).toBeNull();
+    const u = await e.owner.query<{ proveedor: string; motivo_fin: string; error: string }>('SELECT proveedor, motivo_fin, error FROM uso_avatar WHERE sesion_id = $1', [s]);
+    expect(u.rows[0]).toMatchObject({ proveedor: 'simli', motivo_fin: 'error_inicio' });
+    expect(u.rows[0]!.error).not.toContain(acceso.apiKey);
+  });
+
+  it('sin cara lista ni cara de prueba, no hay avatar ni minutos cobrados', async () => {
+    await e.owner.query(`UPDATE cara_avatar SET estado = 'construyendo' WHERE avatar_id = $1`, [avatarId]);
+    const s = await nuevaSesion();
+    const sesion = new voice.AgentSession({});
+    expect(await encenderAvatar({ app, room: new Room(), sesion, personaId: e.ids.persona, sesionId: s, avatarId, modoEmergencia: false, registro })).toBeNull();
+    expect((await e.owner.query('SELECT 1 FROM uso_avatar WHERE sesion_id = $1', [s])).rowCount).toBe(0);
+  });
+});
+
+describe('Simli: cliente HTTP', () => {
+  const acceso = { apiKey: 'clave-de-prueba-simli', apiUrl: SIMLI_CERRADO };
+  it('sin conexión falla con un error propio, sin la clave', async () => {
+    const intento = tokenSesionSimli(acceso, { caraId: CARA_PRUEBA, maxSesionS: 600, maxInactividadS: 45, zoom: null });
+    await expect(intento).rejects.toBeInstanceOf(ErrorSimli);
+    await expect(intento).rejects.toThrow(/sin conexión/);
+    await expect(crearCaraSimli(acceso, { imagen: Buffer.from('x'), mime: 'image/png' }, 'vincular-prueba')).rejects.toMatchObject({ estado: null, sinCupo: false });
+  });
+  it('un 403 al crear la cara se reconoce como falta de cupo', () => {
+    expect(new ErrorSimli(403, 'x').sinCupo).toBe(true);
+    expect(new ErrorSimli(401, 'x').sinCupo).toBe(false);
   });
 });

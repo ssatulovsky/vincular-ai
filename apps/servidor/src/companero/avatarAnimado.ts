@@ -1,7 +1,7 @@
 import type { Consultable } from '../db/conexion.ts';
 
 /**
- * Avatar animado en tiempo real (decisión 0016). El retrato que la persona eligió habla con
+ * Avatar animado en tiempo real (decisiones 0016 y 0017). El retrato que la persona eligió habla con
  * movimiento de boca y rostro, generado por un proveedor externo que recibe solo dos cosas:
  * el retrato (una persona ficticia) y el audio de lo que dice el compañero. La voz de la persona
  * nunca se le envía.
@@ -13,12 +13,13 @@ import type { Consultable } from '../db/conexion.ts';
 
 export type MotivoSinAvatar = 'sin_configuracion' | 'sin_retrato' | 'emergencia' | 'tope_diario';
 
-export interface ConfigAvatarAnimado {
-  proveedor: 'lemonslice';
-  apiKey: string;
+interface TopesAvatar {
   maxMinutosDia: number;
   inactividadS: number;
 }
+export type ConfigAvatarAnimado =
+  | ({ proveedor: 'lemonslice'; apiKey: string } & TopesAvatar)
+  | ({ proveedor: 'simli'; apiKey: string; apiUrl: string; caraPrueba: string | null; zoom: number | null } & TopesAvatar);
 
 /**
  * Regla pura: ¿se enciende el avatar en esta conversación?

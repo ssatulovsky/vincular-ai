@@ -9,6 +9,7 @@ import { evolucion, informesSemanales, SENAL_DEPENDENCIA } from '../../informes/
 import { datosInformeConsulta, htmlInformeConsulta } from '../../informes/consulta.ts';
 import { cancelarTamizaje, ErrorTamizaje, iniciarTamizaje, resultadosTamizaje, tamizajesEnCurso } from '../../tamizaje/tamizaje.ts';
 import { ErrorHttp, enSegundoPlano, exigirActor, type Aplicacion } from '../servidor.ts';
+import { estadoCaraDePersona } from '../../companero/caras.ts';
 
 const uuid = z.string().uuid();
 const ESTADOS = ['onboarding', 'activa', 'pausada', 'baja'] as const;
@@ -123,6 +124,8 @@ export const rutasPanel =
         ),
         app.bd.query<{ nombre: string }>('SELECT nombre FROM perfil_companero WHERE persona_id = $1', [id]),
       ]);
+      // Cara animada (Simli): solo si ese proveedor está encendido. Es un dato técnico, no clínico.
+      const cara = app.config.avatarAnimado?.proveedor === 'simli' ? await estadoCaraDePersona(app.bd, id) : null;
       await auditar(app.bd, actor, { accion: 'persona.ver_datos', recursoTipo: 'persona', recursoId: id, personaId: id });
       return {
         id,
@@ -134,6 +137,7 @@ export const rutasPanel =
         consentimientoVigenteHasta: persona.consentimiento_vigente_hasta ? persona.consentimiento_vigente_hasta.toISOString().slice(0, 10) : null,
         creadaEn: persona.creada_en,
         companero: companero.rows[0]?.nombre ?? null,
+        caraAnimada: app.config.avatarAnimado?.proveedor === 'simli' ? (cara?.estado ?? 'sin_pedir') : null,
         contactos: contactos.rows.map((c) => ({
           id: c.id,
           nombre: app.cifrador.descifrar(c.nombre_cifrado),

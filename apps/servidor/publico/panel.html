@@ -407,7 +407,9 @@
       PESTANAS[clave](zona, f).catch((e) => zona.replaceChildren(h('p', { class: 'error' }, e.message)));
     };
     barra.append(...pestanas.map(([k, t]) => h('button', { type: 'button', role: 'tab', dataset: { p: k }, onclick: () => abrir(k) }, t)));
-    const datos = [f.edad !== null ? `${f.edad} años` : null, f.comuna, f.companero ? `Compañero: ${f.companero}` : 'Sin compañero diseñado'].filter(Boolean).join(' · ');
+    // Estado de la cara animada (solo con Simli encendido): se crea sola al conversar con el retrato elegido.
+    const CARA = { sin_pedir: 'cara animada: se pedirá en la próxima conversación', solicitando: 'cara animada: pidiéndola', construyendo: 'cara animada: en preparación (unas 4 horas)', lista: 'cara animada lista', fallida: 'cara animada: falló, se reintenta mañana', sin_cupo: 'cara animada: sin cupo en el plan de Simli', error: 'cara animada: no se pudo pedir, se reintenta mañana' };
+    const datos = [f.edad !== null ? `${f.edad} años` : null, f.comuna, f.companero ? `Compañero: ${f.companero}` : 'Sin compañero diseñado', f.companero && f.caraAnimada ? CARA[f.caraAnimada] : null].filter(Boolean).join(' · ');
     c.replaceChildren(
       h('button', { class: 'volver', type: 'button', onclick: () => ir('pacientes') }, 'Volver a pacientes'),
       h('div', { class: 'cabeza' },
