@@ -8,7 +8,7 @@ export type Proveedor = 'gemini' | 'anthropic';
 export type NivelRazonamiento = 'low' | 'medium' | 'high';
 
 /** Tareas con modelo propio (especificación, sección 5). */
-export type Tarea = 'conversacion' | 'guardian' | 'riesgo' | 'extraccion' | 'informes' | 'embeddings' | 'imagenes';
+export type Tarea = 'conversacion' | 'conversacion_respaldo' | 'guardian' | 'riesgo' | 'extraccion' | 'informes' | 'embeddings' | 'imagenes';
 
 export interface EspecificacionHerramienta {
   nombre: string;

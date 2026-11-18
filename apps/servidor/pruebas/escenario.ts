@@ -18,7 +18,7 @@ export const CONTACTOS = { samu: '131', prevencionSuicidio: '*4141' };
  */
 export function configDePrueba(extra: Partial<Config> = {}): Config {
   const tareas = Object.fromEntries(
-    (['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings', 'imagenes'] as Tarea[]).map((t) => [t, { proveedor: 'gemini', modelo: 'modelo-inalcanzable', timeoutMs: 1500 }]),
+    (['conversacion', 'conversacion_respaldo', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings', 'imagenes'] as Tarea[]).map((t) => [t, { proveedor: 'gemini', modelo: 'modelo-inalcanzable', timeoutMs: 1500 }]),
   ) as Config['ia']['tareas'];
   return {
     entorno: 'test',

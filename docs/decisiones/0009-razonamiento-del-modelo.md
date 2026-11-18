@@ -13,6 +13,13 @@ En la primera prueba en tiempo real el compañero respondió «tengo un problema
 3. **Reserva de 2048 tokens** sobre el tope de texto en Gemini, para que el razonamiento no deje la respuesta vacía.
 4. **Una respuesta vacía es un error del proveedor** y queda en `uso_modelo` con `finishReason` y los tokens de razonamiento, en vez de registrarse como éxito.
 
+## Actualización 18-11-2026: modelo de respaldo
+
+Ya con `low`, una llamada de conversación tardó más de 30 s y se cortó por tiempo: la persona esperó medio minuto para oír la respuesta segura.
+
+5. **Respaldo de la conversación** (tarea `conversacion_respaldo`): si el modelo principal falla o se demora, se intenta una vez con el de respaldo antes de la respuesta segura. Por defecto es el modelo del guardián (rápido); se cambia con `IA_MODELO_CONVERSACION_RESPALDO`. Su respuesta pasa igual por el guardián. Ambos intentos quedan en `uso_modelo` y en `intervencion_guardian`.
+6. **Esperas más cortas**: conversación 15 s (antes 30 s) y respaldo 10 s. Configurables con `IA_TIMEOUT_MS_<TAREA>`.
+
 ## Pendiente
 
 - Medir en el VPS latencia y calidad de la conversación en `low` frente a `medium`.

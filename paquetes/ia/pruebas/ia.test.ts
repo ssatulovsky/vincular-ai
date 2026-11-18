@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { esquemaParaGemini } from '../src/http.ts';
 import { ErrorProveedor, ModelosPorTarea, RESERVA_RAZONAMIENTO, configuracionGeneracion, crearModelo, extraerImagen, extraerObjetoJson, type ConfigModeloTarea, type Tarea } from '../src/index.ts';
 
-const TAREAS: Tarea[] = ['conversacion', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'];
+const TAREAS: Tarea[] = ['conversacion', 'conversacion_respaldo', 'guardian', 'riesgo', 'extraccion', 'informes', 'embeddings'];
 
 describe('extraerObjetoJson', () => {
   it('lee JSON con o sin cercas de código', () => {

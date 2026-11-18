@@ -88,6 +88,14 @@ describe('configuración', () => {
     );
     expect(() => cargarConfig({ ...ejemplo, ...base })).not.toThrow();
   });
+  it('la conversación tiene respaldo: el modelo del guardián, salvo que se configure otro', () => {
+    const c = cargarConfig({ ...base, IA_MODELO_CONVERSACION: 'grande', IA_MODELO_GUARDIAN: 'rapido', IA_PROVEEDOR_GUARDIAN: 'anthropic' });
+    expect(c.ia.tareas.conversacion_respaldo).toMatchObject({ proveedor: 'anthropic', modelo: 'rapido', timeoutMs: 10_000 });
+    expect(c.ia.tareas.conversacion.timeoutMs).toBe(15_000);
+    expect(c.tareasSinModelo).not.toContain('conversacion_respaldo');
+    const otro = cargarConfig({ ...base, IA_MODELO_GUARDIAN: 'rapido', IA_MODELO_CONVERSACION_RESPALDO: 'otro' });
+    expect(otro.ia.tareas.conversacion_respaldo.modelo).toBe('otro');
+  });
   it('la conversación razona en low por defecto; se puede cambiar o dejar el del modelo', () => {
     expect(cargarConfig(base).ia.tareas.conversacion.razonamiento).toBe('low');
     expect(cargarConfig(base).ia.tareas.riesgo.razonamiento).toBeUndefined();
