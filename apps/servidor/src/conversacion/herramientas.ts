@@ -7,6 +7,7 @@ import { anotarPregunta, citasProximas } from '../medicacion/citas.ts';
 import { buscarEpisodios } from '../memoria/episodica.ts';
 import { CAPAS, confirmarHecho, corregirHecho, crearHecho, listarHechos, marcarPrivado, olvidarHecho } from '../memoria/hechos.ts';
 import { auditar } from '../seguridad/auditoria.ts';
+import { registrarRespuesta } from '../tamizaje/tamizaje.ts';
 import type { Cifrador } from '../seguridad/cifrado.ts';
 
 /**
@@ -26,6 +27,8 @@ export interface AmbitoHerramienta {
   sesionId: string;
   dispositivoId: string | null;
   turnoPersonaId: string;
+  /** Lo que la persona acaba de decir (para verificar citas, p. ej. en el tamizaje). */
+  textoPersona: string;
   ahora: () => Date;
   /** El agente reportó riesgo: el orquestador lo combina (solo puede subir el nivel). */
   alReportarRiesgo: (nivel: NivelRiesgo, motivo: string) => void;
@@ -249,6 +252,29 @@ const controlAnotarPregunta: Herramienta<{ texto: string }> = {
   },
 };
 
+// ── Tamizaje conversacional ─────────────────────────────────────────────────────────
+const tamizajeRegistrar: Herramienta<{ instrumento: string; item: number; respuesta: string; cita: string }> = {
+  especificacion: {
+    nombre: 'tamizaje_registrar',
+    descripcion:
+      'Registra la respuesta de la persona a una pregunta del tamizaje en curso, solo cuando respondió con claridad. "cita" son sus palabras textuales de este turno. Nunca comentes puntajes ni resultados.',
+    esquemaEntrada: {
+      type: 'object',
+      properties: {
+        instrumento: { type: 'string', enum: ['gds15', 'ucla3'] },
+        item: { type: 'integer' },
+        respuesta: { type: 'string', enum: ['si', 'no', 'casi_nunca', 'a_veces', 'a_menudo'] },
+        cita: { type: 'string' },
+      },
+      required: ['instrumento', 'item', 'respuesta', 'cita'],
+    },
+  },
+  entrada: z.object({ instrumento: z.string().max(20), item: z.number().int().min(1).max(30), respuesta: z.string().max(20), cita: z.string().max(300) }),
+  async ejecutar(a, e) {
+    return registrarRespuesta({ bd: a.bd, cifrador: a.cifrador, personaId: a.personaId, sesionId: a.sesionId, turnoPersonaId: a.turnoPersonaId, textoPersona: a.textoPersona, ahora: a.ahora() }, e);
+  },
+};
+
 export const HERRAMIENTAS = [
   memoriaBuscar,
   memoriaQueRecuerdo,
@@ -262,6 +288,7 @@ export const HERRAMIENTAS = [
   medicacionNoTomada,
   citasProximasH,
   controlAnotarPregunta,
+  tamizajeRegistrar,
   riesgoReportar,
 ] as const;
 

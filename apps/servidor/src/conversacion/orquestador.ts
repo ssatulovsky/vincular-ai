@@ -20,6 +20,8 @@ import { planVigente, umbralesDelPlan, type PlanTerapeutico } from './plan.ts';
 import { diaLocal, dosisEntre } from '../medicacion/agenda.ts';
 import { citasProximas } from '../medicacion/citas.ts';
 import { iniciarEscalamiento } from '../escalamiento/motor.ts';
+import { instruccionesTamizaje, tamizajesEnCurso } from '../tamizaje/tamizaje.ts';
+import { senalDependenciaReciente } from '../informes/evolucion.ts';
 import { contextoPersona, insertarTurno, leerSesion, turnosDeSesion, type ContextoPersona, type OrigenTurno } from './repositorio.ts';
 
 export interface DependenciasOrquestador {
@@ -67,6 +69,8 @@ interface EstadoTurno {
   ambito: AmbitoUso;
   reporteAgente: { nivel: NivelRiesgo; motivo: string } | null;
   salud: ContextoSalud;
+  tamizaje: string;
+  reforzarPuente: boolean;
 }
 
 interface ContextoSalud {
@@ -124,11 +128,13 @@ export class Orquestador {
 
     const turnoPersonaId = await insertarTurno(bd, cifrador, sesionId, personaId, 'persona', texto, 'persona');
     const ahora = this.d.ahora?.() ?? new Date();
-    const [ctx, planV, turnos, salud] = await Promise.all([
+    const [ctx, planV, turnos, salud, tamizajes, reforzarPuente] = await Promise.all([
       contextoPersona(bd, cifrador, personaId),
       planVigente(bd, cifrador, personaId),
       turnosDeSesion(bd, cifrador, sesionId),
       contextoSalud(bd, cifrador, personaId, ahora),
+      tamizajesEnCurso(bd, cifrador, personaId),
+      senalDependenciaReciente(bd, personaId, ahora),
     ]);
     const plan = planV?.contenido ?? null;
     const e: EstadoTurno = {
@@ -143,6 +149,8 @@ export class Orquestador {
       ambito: { personaId, sesionId },
       reporteAgente: null,
       salud,
+      tamizaje: instruccionesTamizaje(tamizajes),
+      reforzarPuente,
     };
 
     // 1. Reglas: síncronas, antes de generar.
@@ -230,6 +238,8 @@ export class Orquestador {
       ahora: this.d.ahora?.() ?? new Date(),
       remediosHoy: e.salud.remediosHoy,
       proximaCita: e.salud.proximaCita,
+      tamizaje: e.tamizaje,
+      reforzarPuente: e.reforzarPuente,
     });
 
     let correccion = '';
@@ -286,6 +296,7 @@ export class Orquestador {
       sesionId: e.sesionId,
       dispositivoId: e.dispositivoId,
       turnoPersonaId: e.turnoPersonaId,
+      textoPersona: e.texto,
       ahora: () => this.d.ahora?.() ?? new Date(),
       alReportarRiesgo: (nivel: NivelRiesgo, motivo: string) => {
         if (!e.reporteAgente || nivel > e.reporteAgente.nivel) e.reporteAgente = { nivel, motivo };

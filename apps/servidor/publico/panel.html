@@ -132,6 +132,22 @@
   .lentes-opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0 16px; }
   @media (max-width: 820px) { .dos { grid-template-columns: 1fr; } }
 
+  /* Evolución: gráficos pequeños de una sola serie; uso y contacto humano lado a lado, nunca en doble eje. */
+  .graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .grafico { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--radio); padding: 14px 16px 8px; }
+  .grafico h3 { margin: 0 0 2px; font-size: 16px; }
+  .grafico p { font-size: 13px; color: var(--tinta-suave); margin: 0 0 6px; }
+  .grafico svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .grafico .eje { stroke: var(--linea); stroke-width: 1; }
+  .grafico .base { stroke: var(--tinta-suave); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  .grafico text { font: 12px "Atkinson Hyperlegible", Verdana, sans-serif; fill: var(--tinta-suave); }
+  .grafico .marca { fill: var(--botella); }
+  .grafico .marca:hover, .grafico .marca:focus { fill: #143E31; outline: none; }
+  .grafico .linea { fill: none; stroke: var(--botella); stroke-width: 2; }
+  #tooltip { position: fixed; pointer-events: none; background: var(--tinta); color: #fff; font-size: 13px; padding: 5px 9px; border-radius: 6px; z-index: 10; }
+  .bandera { display: inline-block; font-size: 13px; font-weight: 700; border-radius: 6px; padding: 0 7px; margin-left: 6px; background: #F3E6C7; color: #6B4306; white-space: nowrap; }
+  .aviso-bloque { border-left: 5px solid var(--n2); background: #FBF3E4; padding: 12px 16px; border-radius: 0 var(--radio) var(--radio) 0; margin-bottom: 16px; }
+
   dialog { border: 0; border-radius: var(--radio); padding: 26px 28px; width: min(620px, 94vw); max-height: 90vh; box-shadow: 0 18px 60px rgba(18,34,27,.3); }
   dialog::backdrop { background: rgba(18,34,27,.45); }
   dialog h2 { margin-top: 0; }
@@ -174,6 +190,7 @@
   <main id="contenido" tabindex="-1"></main>
 </div>
 
+<div id="tooltip" class="oculto" role="status"></div>
 <dialog id="dialogo"><form method="dialog" id="dialogo-form"></form></dialog>
 
 <script>
@@ -345,7 +362,7 @@
              p.tablets ? `${p.tablets} ${p.tablets === 1 ? 'activa' : 'activas'} · uso ${hace(p.ultimoUsoTablet)}` : h('span', { class: 'aviso' }, 'Sin tablet'),
              p.profesionales.length ? p.profesionales.join(', ') : h('span', { class: 'aviso' }, 'Sin asignar')]
           : esGuardia() ? [h('strong', {}, p.nombre), p.comuna, alertas]
-          : [escala(p.nivelUltimos7Dias), h('strong', {}, p.nombre), p.edad ?? '—', p.comuna, hace(p.ultimaSesion), alertas];
+          : [escala(p.nivelUltimos7Dias), h('span', {}, h('strong', {}, p.nombre), p.dependencia ? h('span', { class: 'bandera', title: 'El uso sube y el contacto humano baja' }, 'Revisar dependencia') : null, p.tamizajeEnCurso ? h('span', { class: 'bandera', style: 'background:var(--botella-claro);color:var(--botella)' }, 'Tamizaje en curso') : null), p.edad ?? '—', p.comuna, hace(p.ultimaSesion), alertas];
         const abrir = () => esGuardia() ? ir('alertas') : ir('ficha', p.id);
         return h('tr', { class: `clic${p.alertasPendientes ? ' pendiente' : ''}`, tabindex: '0', onclick: abrir, onkeydown: (ev) => { if (ev.key === 'Enter') abrir(); } },
           celdas.map((x, i) => h('td', { class: opcionales.has(columnas[i]) ? 'opcional' : null }, x)));
@@ -381,7 +398,7 @@
     const f = await api('GET', `/api/personas/${id}/ficha`);
     const pestanas = esAdmin()
       ? [['datos', 'Datos'], ['contactos', 'Contactos'], ['tablet', 'Tablet'], ['equipo', 'Equipo'], ['consentimiento', 'Consentimiento']]
-      : [['resumen', 'Resumen'], ['plan', 'Plan terapéutico'], ['salud', 'Medicación y citas'], ['memoria', 'Memoria'], ['datos', 'Contactos y datos']];
+      : [['resumen', 'Resumen'], ['evolucion', 'Evolución'], ['plan', 'Plan terapéutico'], ['salud', 'Medicación y citas'], ['memoria', 'Memoria'], ['datos', 'Contactos y datos']];
     const zona = h('div');
     const barra = h('div', { class: 'pestanas', role: 'tablist' });
     const abrir = (clave) => {
@@ -573,6 +590,63 @@
           listaCitas.length ? h('ul', { class: 'lista-simple' }, listaCitas) : h('p', { class: 'suave' }, 'Sin citas próximas.')));
     },
 
+    async evolucion(z, f) {
+      const ev = await api('GET', `/api/personas/${f.id}/evolucion`);
+      const sem = ev.semanas;
+      const b = ev.lineaBase;
+      const bloques = [];
+      if (ev.dependencia.detectada) bloques.push(h('div', { class: 'aviso-bloque' }, h('strong', {}, 'Revisar posible dependencia. '), ev.dependencia.motivo, ' El compañero está reforzando el puente con otras personas esta semana.'));
+      bloques.push(h('p', { class: 'suave' }, b
+        ? `Línea base (semanas desde el ${etiquetaSemana(b.desde)}): ${b.minutosSemana} min de conversación y ${b.contactosSemana} contactos humanos por semana${b.animoPromedio !== null ? `, ánimo ${b.animoPromedio}` : ''}${b.adherencia !== null ? `, adherencia ${b.adherencia} %` : ''}.`
+        : 'Todavía no hay conversaciones para calcular la línea base.'));
+      if (sem.length) {
+        bloques.push(h('div', { class: 'graficos' },
+          grafico({ titulo: 'Minutos de conversación con el compañero', ayuda: 'Métrica de vigilancia, no de logro.', semanas: sem, valor: (s) => s.minutos, base: b?.minutosSemana ?? null, formato: (v, s) => `${v} min en ${s.sesiones} conversaciones` }),
+          grafico({ titulo: 'Contactos humanos que contó', ayuda: 'Llamadas, visitas, salidas y actividades, según los resúmenes.', semanas: sem, valor: (s) => s.contactosHumanos, base: b?.contactosSemana ?? null, formato: (v) => `${v} ${v === 1 ? 'contacto' : 'contactos'}` }),
+          grafico({ titulo: 'Ánimo', ayuda: 'Promedio de la semana, de −2 (muy bajo) a 2 (muy bueno), solo con frases que lo sostienen.', semanas: sem, valor: (s) => s.animo.promedio, tipo: 'linea', min: -2, max: 2, base: b?.animoPromedio ?? null, formato: (v, s) => `${v} (${s.animo.registros} registros)` }),
+          grafico({ titulo: 'Adherencia a la medicación', ayuda: 'Porcentaje de dosis confirmadas.', semanas: sem, valor: (s) => s.adherencia.porcentaje, tipo: 'linea', min: 0, max: 100, base: b?.adherencia ?? null, formato: (v, s) => `${v} % (${s.adherencia.confirmadas} de ${s.adherencia.total})`, sinDatos: 'Sin dosis registradas: no hay medicamentos con recordatorio.' })));
+        bloques.push(h('div', { class: 'bloque', style: 'margin-top:16px' }, h('h2', {}, 'Semana a semana'),
+          h('table', { class: 'tabla' },
+            h('thead', {}, h('tr', {}, ['Semana', 'Conversaciones', 'Minutos', 'Contactos humanos', 'Ánimo', 'Noches mal dormidas', 'Adherencia', 'Alertas', 'Riesgo máx.'].map((x) => h('th', {}, x)))),
+            h('tbody', {}, [...sem].reverse().map((s, i) => h('tr', {},
+              h('td', {}, etiquetaSemana(s.semana), i === 0 ? h('span', { class: 'suave' }, ' (en curso)') : null), h('td', {}, String(s.sesiones)), h('td', {}, String(s.minutos)), h('td', {}, String(s.contactosHumanos)),
+              h('td', {}, s.animo.promedio ?? '—'), h('td', {}, String(s.suenoMalo)), h('td', {}, s.adherencia.porcentaje === null ? '—' : `${s.adherencia.porcentaje} %`),
+              h('td', {}, String(s.alertas)), h('td', {}, escala(s.nivelMaximo))))))));
+      }
+
+      // Tamizaje
+      const t = ev.tamizaje;
+      const iniciar = (instrumento, nombre) => h('button', { class: 'boton sec chico', type: 'button', onclick: async () => {
+        if (!confirm(`¿Iniciar ${nombre}? El compañero hará las preguntas de a una, conversando, y nunca comentará el resultado.`)) return;
+        try { await api('POST', `/api/personas/${f.id}/tamizajes`, { instrumento }); PESTANAS.evolucion(z, f); } catch (e) { alert(e.message); }
+      } }, `Iniciar ${nombre}`);
+      bloques.push(h('div', { class: 'bloque', style: 'margin-top:16px' },
+        h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Tamizaje'), esSupervisor() ? h('div', { class: 'acciones', style: 'margin:0' }, iniciar('gds15', 'GDS-15'), iniciar('ucla3', 'UCLA-3')) : null),
+        h('p', { class: 'suave' }, 'El compañero aplica el instrumento conversando, una pregunta por vez y con las palabras de la persona como respaldo. El puntaje lo calcula el sistema. La especificación pide línea base, 3 y 6 meses. Un GDS-15 de 5 o más genera una alerta de nivel 2.'),
+        t.enCurso.length ? h('ul', { class: 'lista-simple' }, t.enCurso.map((x) => h('li', {}, h('div', {}, h('strong', {}, x.nombre), h('br'), h('span', { class: 'suave' }, `En curso desde ${fecha(x.iniciadoEn)}: ${x.respondidas} de ${x.total} respuestas`)),
+          esSupervisor() ? h('button', { class: 'boton peligro chico', type: 'button', onclick: async () => { if (!confirm('¿Cancelar este tamizaje?')) return; await api('POST', `/api/personas/${f.id}/tamizajes/${x.id}/cancelar`); PESTANAS.evolucion(z, f); } }, 'Cancelar') : null))) : null,
+        t.resultados.length ? h('table', { class: 'tabla', style: 'margin-top:10px' }, h('thead', {}, h('tr', {}, ['Instrumento', 'Fecha', 'Puntaje', ''].map((x) => h('th', {}, x)))),
+          h('tbody', {}, t.resultados.map((r) => h('tr', { class: r.elevado ? 'pendiente' : null }, h('td', {}, r.nombre), h('td', {}, fecha(r.aplicadoEn)), h('td', {}, `${r.puntaje} de ${r.maximo}`),
+            h('td', {}, r.elevado ? h('span', { class: 'aviso' }, `Elevado (corte ${r.corte})`) : h('span', { class: 'suave' }, `Bajo el corte (${r.corte})`))))))
+          : h('p', { class: 'suave' }, 'Sin resultados todavía.')));
+
+      // Informes semanales
+      bloques.push(h('div', { class: 'bloque' }, h('h2', {}, 'Informes semanales'),
+        ev.semanales.length ? ev.semanales.map((w) => h('div', { style: 'border-top:1px solid var(--linea);padding:12px 0' },
+          h('h3', { style: 'margin:0 0 4px' }, `Semana del ${etiquetaSemana(w.semana)}`),
+          h('p', { class: 'suave' }, `${w.metricas.sesiones} ${w.metricas.sesiones === 1 ? 'conversación' : 'conversaciones'} · ${w.metricas.minutos} min · ${w.metricas.contactosHumanos} ${w.metricas.contactosHumanos === 1 ? 'contacto humano' : 'contactos humanos'}${w.metricas.adherencia.porcentaje !== null ? ` · adherencia ${w.metricas.adherencia.porcentaje} %` : ''}`),
+          w.dependencia?.detectada ? h('p', { class: 'aviso' }, `Posible dependencia: ${w.dependencia.motivo}`) : null,
+          w.sintesis ? [h('p', {}, w.sintesis.sintesis),
+            w.sintesis.cambios_relevantes.length ? h('ul', {}, w.sintesis.cambios_relevantes.map((c) => h('li', {}, c.texto, citas(c.citas)))) : null,
+            w.sintesis.para_supervision.length ? h('p', {}, h('strong', {}, 'Para la supervisión: '), w.sintesis.para_supervision.join('; ')) : null]
+            : h('p', { class: 'suave' }, `Sin síntesis escrita: ${(w.erroresSintesis ?? []).join(' ') || 'no disponible.'}`)))
+          : h('p', { class: 'suave' }, 'El primer informe semanal se genera el lunes siguiente a la primera semana con conversaciones.')));
+
+      if (ev.desvios.length) bloques.push(h('div', { class: 'bloque' }, h('h2', {}, 'Desvíos del compañero marcados por el supervisor'),
+        h('ul', { class: 'lista-simple' }, ev.desvios.map((d) => h('li', {}, h('div', {}, d.comentario, h('br'), h('span', { class: 'suave' }, `${d.autor} · ${fechaHora(d.creadoEn)}`)))))));
+      z.replaceChildren(...bloques);
+    },
+
     async memoria(z, f) {
       const { hechos, conversaciones } = await api('GET', `/api/personas/${f.id}/memoria`);
       const porCapa = {};
@@ -746,10 +820,80 @@
         h('h3', {}, 'Lecturas teóricas'),
         h('p', { class: 'nota-lentes' }, 'Hipótesis para el profesional, nunca conclusiones. Cada una cita lo que dijo la persona; una «lectura» exige que el patrón se repita en sesiones anteriores.'),
         lentes.length ? lentes : h('p', { class: 'suave' }, 'Sin material suficiente para lecturas en esta sesión.'),
-        h('p', { class: 'nota-lentes', style: 'margin-top:16px' }, `Generado ${fechaHora(informe.generadoEn)}${informe.modelo ? ` con ${informe.modelo}` : ''}. Todas las citas se verificaron contra la transcripción.`))],
+        h('p', { class: 'nota-lentes', style: 'margin-top:16px' }, `Generado ${fechaHora(informe.generadoEn)}${informe.modelo ? ` con ${informe.modelo}` : ''}. Todas las citas se verificaron contra la transcripción.`),
+        esSupervisor() ? h('div', { class: 'acciones' }, h('button', { class: 'boton sec chico', type: 'button', onclick: () => marcarDesvio(f, s) }, 'Marcar desvío del plan')) : null)],
       null, null, true);
     }).catch((e) => alert(e.message));
   }
+  function marcarDesvio(f, s) {
+    dialogo('Marcar desvío del plan', [
+      h('p', {}, `Sesión del ${fechaHora(s.inicio)}. Describa en qué se apartó el compañero del plan terapéutico. Queda como dato para mejorar el sistema.`),
+      ...campo('dv-comentario', 'Qué pasó', { required: true, minlength: 10, multilinea: true }),
+    ], 'Guardar', async () => {
+      await api('POST', `/api/personas/${f.id}/sesiones/${s.id}/desvios`, { comentario: $('dv-comentario').value });
+    });
+  }
+
+  // ── Gráficos (una serie por gráfico; el valor exacto aparece al pasar sobre la marca) ──
+  const tooltip = $('tooltip');
+  function mostrarTooltip(ev, texto) { tooltip.textContent = texto; tooltip.classList.remove('oculto'); tooltip.style.left = `${ev.clientX + 12}px`; tooltip.style.top = `${ev.clientY - 30}px`; }
+  const ocultarTooltip = () => tooltip.classList.add('oculto');
+  const NS = 'http://www.w3.org/2000/svg';
+  const sv = (etiqueta, attrs = {}, ...hijos) => { const el = document.createElementNS(NS, etiqueta); for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined) el.setAttribute(k, v); el.append(...hijos); return el; };
+  const etiquetaSemana = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
+  /**
+   * tipo 'barras' (cantidades) o 'linea' (niveles); `base`: línea base punteada; `formato`: texto del tooltip.
+   * Valores nulos no se dibujan (sin dato no es cero).
+   */
+  function grafico({ titulo, ayuda, semanas, valor, tipo = 'barras', min = 0, max, base = null, formato, sinDatos }) {
+    const W = 340, H = 150, izq = 30, abajo = 22, arriba = 8;
+    const vals = semanas.map(valor);
+    // Sin ningún dato no se dibuja un gráfico vacío: se dice.
+    if (vals.every((v) => v === null)) return h('div', { class: 'grafico' }, h('h3', {}, titulo), h('p', {}, sinDatos ?? 'Sin datos en estas semanas.'));
+    const tope = max ?? Math.max(1, ...vals.filter((v) => v !== null), base ?? 0);
+    const y = (v) => arriba + (H - arriba - abajo) * (1 - (v - min) / (tope - min || 1));
+    const paso = (W - izq) / Math.max(semanas.length, 1);
+    const x = (i) => izq + paso * i + paso / 2;
+    const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${titulo}: ${semanas.map((s, i) => `${etiquetaSemana(s.semana)} ${vals[i] ?? 'sin dato'}`).join(', ')}` });
+    for (const v of [min, tope]) svg.append(sv('text', { x: izq - 6, y: y(v) + 4, 'text-anchor': 'end' }, String(Math.round(v * 10) / 10)));
+    svg.append(sv('line', { class: 'eje', x1: izq, x2: W, y1: y(min < 0 ? 0 : min), y2: y(min < 0 ? 0 : min) }));
+    semanas.forEach((s, i) => { if (i % 2 === semanas.length % 2 || semanas.length <= 4) svg.append(sv('text', { x: x(i), y: H - 6, 'text-anchor': 'middle' }, etiquetaSemana(s.semana))); });
+    if (base !== null) {
+      svg.append(sv('line', { class: 'base', x1: izq, x2: W, y1: y(base), y2: y(base) }));
+      svg.append(sv('text', { x: W, y: y(base) - 4, 'text-anchor': 'end' }, 'línea base'));
+    }
+    const conTooltip = (el, i) => {
+      const enCurso = i === semanas.length - 1 ? ' (semana en curso)' : '';
+      const texto = `Semana del ${etiquetaSemana(semanas[i].semana)}${enCurso}: ${vals[i] === null ? 'sin dato' : formato(vals[i], semanas[i])}`;
+      el.setAttribute('tabindex', '0');
+      el.addEventListener('mousemove', (ev) => mostrarTooltip(ev, texto));
+      el.addEventListener('mouseleave', ocultarTooltip);
+      el.addEventListener('focus', () => { const r = el.getBoundingClientRect(); mostrarTooltip({ clientX: r.right, clientY: r.top }, texto); });
+      el.addEventListener('blur', ocultarTooltip);
+      el.append(sv('title', {}, texto));
+    };
+    if (tipo === 'barras') {
+      const ancho = Math.min(22, paso - 6);
+      vals.forEach((v, i) => {
+        if (v === null) return;
+        const alto = Math.max(v > 0 ? 2 : 0, y(min) - y(v));
+        const r = sv('rect', { class: 'marca', x: x(i) - ancho / 2, y: y(min) - alto, width: ancho, height: alto, rx: Math.min(4, alto / 2) });
+        conTooltip(r, i);
+        // Zona de contacto más grande que la barra.
+        const zona = sv('rect', { x: x(i) - paso / 2, y: arriba, width: paso, height: H - arriba - abajo, fill: 'transparent' });
+        conTooltip(zona, i);
+        svg.append(r, zona);
+      });
+    } else {
+      const pts = vals.map((v, i) => (v === null ? null : [x(i), y(v)]));
+      let d = '';
+      pts.forEach((p, i) => { if (p) d += `${d && pts[i - 1] ? 'L' : 'M'}${p[0]},${p[1]} `; });
+      if (d) svg.append(sv('path', { class: 'linea', d }));
+      pts.forEach((p, i) => { if (!p) return; const c = sv('circle', { class: 'marca', cx: p[0], cy: p[1], r: 4.5 }); conTooltip(c, i); svg.append(c); });
+    }
+    return h('div', { class: 'grafico' }, h('h3', {}, titulo), ayuda ? h('p', {}, ayuda) : null, svg);
+  }
+
   async function verAlerta(id, despues) {
     const a = await api('GET', `/api/alertas/${id}`);
     dialogo(`Alerta de nivel ${a.nivel}`, [
