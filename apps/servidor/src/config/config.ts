@@ -192,6 +192,12 @@ export function cargarConfig(entornoOriginal: NodeJS.ProcessEnv = process.env): 
     };
   }
 
+  // Informes: si no se configuró un modelo propio, usan el de la conversación.
+  if (!tareas.informes.modelo && tareas.conversacion.modelo) {
+    tareas.informes = { ...tareas.informes, proveedor: tareas.conversacion.proveedor, modelo: tareas.conversacion.modelo };
+    const i = tareasSinModelo.indexOf('informes');
+    if (i >= 0) tareasSinModelo.splice(i, 1);
+  }
   // Respaldo de la conversación: si no se configuró, usa el modelo rápido del guardián.
   if (!tareas.conversacion_respaldo.modelo && tareas.guardian.modelo) {
     tareas.conversacion_respaldo = { ...tareas.conversacion_respaldo, proveedor: tareas.guardian.proveedor, modelo: tareas.guardian.modelo };

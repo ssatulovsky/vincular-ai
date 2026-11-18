@@ -6,6 +6,7 @@ import { actorDesdeToken } from '../../seguridad/autenticacion.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
 import type { Actor } from '../../seguridad/permisos.ts';
 import { ErrorHttp, enSegundoPlano, exigirActor, type Aplicacion } from '../servidor.ts';
+import { generarInformeSesion } from '../../informes/sesion.ts';
 import { procesarSesion } from '../../memoria/extraccion.ts';
 import { MAX_BYTES_AUDIO, procesarTurnoVoz } from '../../voz/turnoVoz.ts';
 
@@ -36,7 +37,12 @@ async function cerrar(app: Aplicacion, actor: ActorDispositivo, sesionId: string
   }
   await app.bd.query('UPDATE sesion_conversacion SET fin = coalesce(fin, now()) WHERE id = $1', [sesionId]);
   // La memoria de la sesión se extrae en segundo plano; si falla, la retoma `memoria:procesar`.
-  enSegundoPlano(app, 'memoria', () => procesarSesion({ bd: app.bd, cifrador: app.cifrador, modelos: app.modelos }, sesionId));
+  // Después, el resumen para el supervisor; si falla, lo retoma el planificador.
+  enSegundoPlano(app, 'memoria', async () => {
+    const d = { bd: app.bd, cifrador: app.cifrador, modelos: app.modelos };
+    const r = await procesarSesion(d, sesionId);
+    if (r.estado !== 'error' && r.estado !== 'ocupada') await generarInformeSesion(d, sesionId);
+  });
   return { cerrada: true };
 }
 

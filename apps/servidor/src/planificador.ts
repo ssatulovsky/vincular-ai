@@ -1,6 +1,7 @@
 import type { Aplicacion } from './api/servidor.ts';
 import { cicloMedicacion } from './medicacion/agenda.ts';
 import { procesarPendientes } from './memoria/extraccion.ts';
+import { generarInformesPendientes } from './informes/sesion.ts';
 import { cicloEscalamiento } from './escalamiento/motor.ts';
 
 /**
@@ -27,6 +28,8 @@ export class Planificador {
     });
     this.cada('memoria', 5 * 60_000, async () => {
       await procesarPendientes({ bd: this.app.bd, cifrador: this.app.cifrador, modelos: this.app.modelos }, { minutosInactividad: this.app.config.memoriaMinutosInactividad });
+      // El resumen para el supervisor, una vez procesada la memoria de la sesión.
+      await generarInformesPendientes({ bd: this.app.bd, cifrador: this.app.cifrador, modelos: this.app.modelos });
     });
   }
 
