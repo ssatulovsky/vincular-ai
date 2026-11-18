@@ -88,6 +88,13 @@ describe('configuración', () => {
     );
     expect(() => cargarConfig({ ...ejemplo, ...base })).not.toThrow();
   });
+  it('la conversación razona en low por defecto; se puede cambiar o dejar el del modelo', () => {
+    expect(cargarConfig(base).ia.tareas.conversacion.razonamiento).toBe('low');
+    expect(cargarConfig(base).ia.tareas.riesgo.razonamiento).toBeUndefined();
+    expect(cargarConfig({ ...base, IA_RAZONAMIENTO_CONVERSACION: 'medium' }).ia.tareas.conversacion.razonamiento).toBe('medium');
+    expect(cargarConfig({ ...base, IA_RAZONAMIENTO_CONVERSACION: 'predeterminado' }).ia.tareas.conversacion.razonamiento).toBeUndefined();
+    expect(() => cargarConfig({ ...base, IA_RAZONAMIENTO_CONVERSACION: 'minimal' })).toThrow(/low, medium, high/);
+  });
   it('sigue rechazando una URL pública mal escrita', () => {
     expect(() => cargarConfig({ ...base, BASE_URL_PUBLICA: 'vincular.cl' })).toThrow(/BASE_URL_PUBLICA/);
   });

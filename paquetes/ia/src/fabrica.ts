@@ -1,11 +1,13 @@
 import { ModeloAnthropic } from './proveedores/anthropic.ts';
 import { ModeloGemini } from './proveedores/gemini.ts';
-import type { ModeloIA, Proveedor, Tarea } from './tipos.ts';
+import type { ModeloIA, NivelRazonamiento, Proveedor, Tarea } from './tipos.ts';
 
 export interface ConfigModeloTarea {
   proveedor: Proveedor;
   modelo: string;
   timeoutMs: number;
+  /** Solo Gemini; Claude lo ignora. */
+  razonamiento?: NivelRazonamiento;
 }
 
 export interface ConfigIA {
@@ -20,7 +22,7 @@ export function crearModelo(c: ConfigModeloTarea, clave: string, url?: string): 
   const base = { apiKey: clave, modelo: c.modelo, timeoutMs: c.timeoutMs, ...(url ? { url } : {}) };
   switch (c.proveedor) {
     case 'gemini':
-      return new ModeloGemini(base);
+      return new ModeloGemini({ ...base, ...(c.razonamiento ? { razonamiento: c.razonamiento } : {}) });
     case 'anthropic':
       return new ModeloAnthropic(base);
   }

@@ -4,6 +4,8 @@
  */
 
 export type Proveedor = 'gemini' | 'anthropic';
+/** Cuánto razona el modelo antes de responder (Gemini: thinkingLevel). Más bajo = más rápido. */
+export type NivelRazonamiento = 'low' | 'medium' | 'high';
 
 /** Tareas con modelo propio (especificación, sección 5). */
 export type Tarea = 'conversacion' | 'guardian' | 'riesgo' | 'extraccion' | 'informes' | 'embeddings' | 'imagenes';
