@@ -120,7 +120,8 @@
     },
     {
       "texto": "Se nota que lo quería mucho. ¿Cómo se conocieron?",
-      "bloquear": false
+      "bloquear": false,
+      "mensaje": "Hoy se cumplen cinco años desde que murió mi esposo."
     },
     {
       "texto": "¿Y si llama a su hija para contarle lo del queque? Seguro le alegra el día.",
