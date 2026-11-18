@@ -254,7 +254,7 @@
     if (r.status === 401) { guardar(null); token = null; mostrarIngreso('Su sesión venció. Ingrese de nuevo.'); throw new Error('Sesión vencida'); }
     const datos = await r.json().catch(() => ({}));
     if (!r.ok) {
-      const det = datos.detalles?.[0]?.message || datos.issues?.[0]?.message;
+      const det = datos.detalle?.[0]?.mensaje;
       throw new Error(det ? `${datos.error ?? 'Datos inválidos'}: ${det}` : (datos.error ?? `Error ${r.status}`));
     }
     return datos;
@@ -599,6 +599,7 @@
         h('div', {}, h('strong', {}, fechaHora(ci.fecha)), ` · ${ci.lugar}`, h('br'), h('span', { class: 'suave' }, [ci.profesional, ci.motivo].filter(Boolean).join(' · ') || 'Sin detalle')),
         h('div', { class: 'acciones', style: 'margin:0' },
           h('button', { class: 'boton sec chico', type: 'button', onclick: () => verHoja(f, ci) }, 'Hoja para el control'),
+          h('button', { class: 'boton sec chico', type: 'button', onclick: () => informeConsulta(f, ci) }, 'Informe para el profesional'),
           h('button', { class: 'boton peligro chico', type: 'button', onclick: async () => { if (!confirm('¿Cancelar esta cita?')) return; await api('POST', `/api/personas/${f.id}/citas/${ci.id}/cancelar`); PESTANAS.salud(z, f); } }, 'Cancelar'))));
       z.replaceChildren(
         h('div', { class: 'bloque' }, h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Medicación'), h('button', { class: 'boton', type: 'button', onclick: () => nuevoMedicamento(f, () => PESTANAS.salud(z, f)) }, 'Agregar medicamento')),
@@ -787,6 +788,27 @@
     ], 'Agregar', async () => {
       await api('POST', `/api/personas/${f.id}/citas`, { lugar: $('ci-lugar').value, profesional: $('ci-prof').value || null, fecha: new Date($('ci-fecha').value).toISOString(), motivo: $('ci-motivo').value || null });
       listo();
+    });
+  }
+  function informeConsulta(f, ci) {
+    const nombre = f.nombre.split(' ')[0];
+    dialogo('Informe para el profesional tratante', [
+      h('p', {}, `Síntesis del período para el control del ${fechaHora(ci.fecha)}: preguntas de ${nombre}, medicación y adherencia, lo que contó de su salud, ánimo, alertas y tamizajes. Sin transcripciones, hipótesis ni temas privados.`),
+      ...campo('ic-dest', 'Para quién', { required: true, minlength: 3, value: ci.profesional ?? '', placeholder: 'Dra. Pérez, CESFAM Puerto Varas' }),
+      h('label', {}, 'Cómo autorizó'),
+      h('label', { class: 'check' }, h('input', { type: 'radio', name: 'ic-forma', value: 'verbal', checked: true }), 'Verbalmente'),
+      h('label', { class: 'check' }, h('input', { type: 'radio', name: 'ic-forma', value: 'escrita' }), 'Por escrito'),
+      h('label', { class: 'check', style: 'margin-top:12px' }, h('input', { type: 'checkbox', id: 'ic-ok', required: true }), `Confirmo que ${nombre} autorizó compartir este informe con este profesional.`),
+      h('p', { class: 'suave' }, 'Queda registrado con su nombre, el destinatario y la fecha.'),
+    ], 'Generar informe', async () => {
+      const r = await fetch(`/api/personas/${f.id}/citas/${ci.id}/informe-consulta`, {
+        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ destinatario: $('ic-dest').value, forma: document.querySelector('input[name="ic-forma"]:checked').value, autorizacionConfirmada: $('ic-ok').checked }),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detalle?.[0]?.mensaje || d.error || 'No se pudo generar el informe.'); }
+      const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html' }));
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     });
   }
   async function verHoja(f, ci) {

@@ -104,7 +104,7 @@
     const r = await fetch(url, { method: metodo, headers: { authorization: `Bearer ${token}`, ...(cuerpo ? { 'content-type': 'application/json' } : {}) }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
     if (r.status === 401) { guardar(null); token = null; mostrarIngreso('Su sesión venció. Ingrese de nuevo.'); throw new Error('Sesión vencida'); }
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error ?? `Error ${r.status}`);
+    if (!r.ok) throw new Error(d.detalle?.[0]?.mensaje ?? d.error ?? `Error ${r.status}`);
     return d;
   }
 
