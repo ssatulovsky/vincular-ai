@@ -9,6 +9,14 @@ const HTML_COMPANERO = readFileSync(new URL('../../../publico/companero.html', i
 const HTML_PANEL = readFileSync(new URL('../../../publico/panel.html', import.meta.url), 'utf8');
 const HTML_FAMILIA = readFileSync(new URL('../../../publico/familia.html', import.meta.url), 'utf8');
 
+// Logo de Vincular-IA (ícono, favicon y logo completo). Lista cerrada: no se sirve otra cosa de la carpeta.
+const MARCA = new Map(
+  ['emblema-512.png', 'emblema-192.png', 'emblema-180.png', 'emblema-96.png', 'favicon-64.png', 'favicon-32.png', 'logo-completo.jpg'].map((n) => [
+    n,
+    readFileSync(new URL(`../../../publico/marca/${n}`, import.meta.url)),
+  ]),
+);
+
 // Cliente de LiveKit servido desde el propio servidor (sin CDN de terceros).
 // El paquete no exporta el archivo UMD: se ubica junto a su punto de entrada (dist/).
 const CLIENTE_LIVEKIT = readFileSync(path.join(path.dirname(createRequire(import.meta.url).resolve('livekit-client')), 'livekit-client.umd.js'), 'utf8');
@@ -41,6 +49,15 @@ export const rutasTablet =
         .header('permissions-policy', 'microphone=(self)')
         .send(HTML),
     );
+
+    f.get('/marca/:archivo', async (req, reply) => {
+      const nombre = (req.params as { archivo: string }).archivo;
+      const archivo = MARCA.get(nombre);
+      if (!archivo) return reply.code(404).send({ error: 'No existe' });
+      return reply.type(nombre.endsWith('.jpg') ? 'image/jpeg' : 'image/png').header('cache-control', 'public, max-age=604800').send(archivo);
+    });
+    // Los navegadores piden /favicon.ico por su cuenta.
+    f.get('/favicon.ico', async (_req, reply) => reply.redirect('/marca/favicon-32.png', 301));
 
     f.get('/vendor/livekit-client.js', async (_req, reply) =>
       reply.type('application/javascript; charset=utf-8').header('cache-control', 'public, max-age=86400').send(CLIENTE_LIVEKIT),

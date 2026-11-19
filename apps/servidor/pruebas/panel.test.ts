@@ -199,3 +199,25 @@ describe('panel: página', () => {
     expect(r.body).not.toMatch(/innerHTML/);
   });
 });
+
+describe('logo de Vincular-IA', () => {
+  it('se sirven solo los archivos de la lista, como imagen y con caché', async () => {
+    const r = await e.f.inject({ method: 'GET', url: '/marca/emblema-96.png' });
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['content-type']).toBe('image/png');
+    expect(r.headers['cache-control']).toContain('max-age');
+    expect(r.rawPayload.subarray(1, 4).toString()).toBe('PNG');
+    expect((await e.f.inject({ method: 'GET', url: '/marca/logo-completo.jpg' })).headers['content-type']).toBe('image/jpeg');
+    for (const url of ['/marca/otro.png', '/marca/..%2Fpanel.html', '/marca/%2E%2E%2F%2E%2E%2Fpackage.json']) {
+      expect((await e.f.inject({ method: 'GET', url })).statusCode).toBe(404);
+    }
+  });
+  it('todas las páginas declaran el ícono', async () => {
+    for (const url of ['/panel', '/familia', '/tablet', '/companero']) {
+      expect((await e.f.inject({ method: 'GET', url })).body).toContain('/marca/favicon-32.png');
+    }
+    const ico = await e.f.inject({ method: 'GET', url: '/favicon.ico' });
+    expect(ico.statusCode).toBe(301);
+    expect(ico.headers.location).toBe('/marca/favicon-32.png');
+  });
+});
