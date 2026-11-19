@@ -6,11 +6,13 @@ import { auditar } from '../../seguridad/auditoria.ts';
 import { exigirPermiso } from '../../seguridad/permisos.ts';
 import { generarInformeSesion, leerInforme } from '../../informes/sesion.ts';
 import { evolucion, informesSemanales, SENAL_DEPENDENCIA } from '../../informes/evolucion.ts';
+import { datosInformeConsulta, htmlInformeConsulta } from '../../informes/consulta.ts';
 import { cancelarTamizaje, ErrorTamizaje, iniciarTamizaje, resultadosTamizaje, tamizajesEnCurso } from '../../tamizaje/tamizaje.ts';
 import { ErrorHttp, enSegundoPlano, exigirActor, type Aplicacion } from '../servidor.ts';
 
 const uuid = z.string().uuid();
 const ESTADOS = ['onboarding', 'activa', 'pausada', 'baja'] as const;
+const ROL_TEXTO: Record<string, string> = { supervisor_clinico: 'psicólogo/a supervisor/a', enfermera_enlace: 'enfermera/o de enlace', gerontologo: 'gerontólogo/a', guardia: 'guardia clínica', admin_plataforma: 'administración' };
 const PERMISOS_CONTACTO = z
   .object({ resumen_bienestar: z.boolean().default(false), avisos_medicacion: z.boolean().default(false), hoja_control: z.boolean().default(false) })
   .strict();
@@ -440,6 +442,28 @@ export const rutasPanel =
       const r = await app.bd.query<{ id: string }>('INSERT INTO desvio_agente (persona_id, sesion_id, cuenta_id, comentario_cifrado) VALUES ($1, $2, $3, $4) RETURNING id', [id, sesionId, actor.id, app.cifrador.cifrar(comentario)]);
       await auditar(app.bd, actor, { accion: 'desvio_agente.marcar', recursoTipo: 'sesion_conversacion', recursoId: sesionId, personaId: id });
       return reply.code(201).send({ id: r.rows[0]!.id });
+    });
+
+    /**
+     * Informe para el profesional tratante, desde una cita. Exige registrar la autorización de la
+     * persona (a quién y de qué forma); queda auditado con el destinatario.
+     */
+    f.post('/api/personas/:id/citas/:citaId/informe-consulta', async (req, reply) => {
+      const actor = exigirPersonal(req);
+      const { id, citaId } = z.object({ id: uuid, citaId: uuid }).parse(req.params);
+      await exigirPermiso(app.bd, actor, 'persona.ver_ficha', id);
+      const b = z
+        .object({
+          destinatario: z.string().trim().min(3, 'Indique a qué profesional se entrega').max(160),
+          forma: z.enum(['verbal', 'escrita']),
+          autorizacionConfirmada: z.literal(true, { message: 'Confirme que la persona autorizó compartir el informe' }),
+        })
+        .parse(req.body);
+      const ahora = new Date();
+      const d = await datosInformeConsulta(app.bd, app.cifrador, id, citaId, { destinatario: b.destinatario, forma: b.forma, registradaPor: `${actor.nombre} (${ROL_TEXTO[actor.rol]})`, registradaEn: ahora }, ahora);
+      if (!d) throw new ErrorHttp(404, 'Cita inexistente o cancelada');
+      await auditar(app.bd, actor, { accion: 'informe_consulta.generar', recursoTipo: 'cita', recursoId: citaId, personaId: id, detalle: { destinatario: b.destinatario, forma: b.forma, omitidasPorPrivadas: d.omitidasPorPrivadas } });
+      return reply.type('text/html; charset=utf-8').header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'").header('cache-control', 'no-store').send(htmlInformeConsulta(d));
     });
 
     f.get('/api/personas/:id/plan-terapeutico/versiones', async (req) => {
