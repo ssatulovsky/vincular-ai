@@ -39,9 +39,16 @@ export function decidirAvatar(e: {
 }
 
 /** Minutos de avatar que la persona lleva hoy (día de Chile), contando el que esté abierto. */
+/**
+ * Máximo que dura una sesión de avatar (también se le exige a Simli). Un registro que quedó abierto
+ * porque su proceso murió nunca cuenta más que esto: si no, bloquearía el avatar por el tope diario.
+ */
+export const MAX_SESION_AVATAR_MIN = 30;
+const FIN_EFECTIVO = `least(coalesce(fin, now()), inicio + interval '${MAX_SESION_AVATAR_MIN} minutes')`;
+
 export async function minutosAvatarHoy(bd: Consultable, personaId: string): Promise<number> {
   const r = await bd.query<{ min: number }>(
-    `SELECT coalesce(sum(extract(epoch FROM (coalesce(fin, now()) - inicio))), 0)::float8 / 60 AS min
+    `SELECT coalesce(sum(extract(epoch FROM (${FIN_EFECTIVO} - inicio))), 0)::float8 / 60 AS min
        FROM uso_avatar
       WHERE persona_id = $1
         AND inicio >= (now() AT TIME ZONE 'America/Santiago')::date AT TIME ZONE 'America/Santiago'`,
@@ -60,10 +67,21 @@ export async function cerrarUsoAvatar(bd: Consultable, usoId: string, motivo: 'f
   await bd.query('UPDATE uso_avatar SET fin = now(), motivo_fin = $2, error = $3 WHERE id = $1 AND fin IS NULL', [usoId, motivo, error ? error.replace(/\s+/g, ' ').slice(0, 300) : null]);
 }
 
+/**
+ * Al arrancar el servicio del agente, ninguna sesión de avatar puede seguir viva: las abiertas
+ * quedaron de un proceso anterior (reinicio, caída). Se cierran con su duración máxima posible.
+ */
+export async function cerrarUsosHuerfanos(bd: Consultable): Promise<number> {
+  const r = await bd.query(
+    `UPDATE uso_avatar SET fin = ${FIN_EFECTIVO}, motivo_fin = 'interrumpido' WHERE fin IS NULL`,
+  );
+  return r.rowCount ?? 0;
+}
+
 /** Minutos de avatar por persona en un mes 'AAAA-MM' (para el costo mensual). */
 export async function minutosAvatarDelMes(bd: Consultable, mes: string): Promise<Array<{ personaId: string; proveedor: string; minutos: number }>> {
   const r = await bd.query<{ persona_id: string; proveedor: string; min: number }>(
-    `SELECT persona_id, proveedor, sum(extract(epoch FROM (coalesce(fin, now()) - inicio)))::float8 / 60 AS min
+    `SELECT persona_id, proveedor, sum(extract(epoch FROM (${FIN_EFECTIVO} - inicio)))::float8 / 60 AS min
        FROM uso_avatar
       WHERE inicio >= ($1 || '-01')::date AT TIME ZONE 'America/Santiago'
         AND inicio < (($1 || '-01')::date + interval '1 month') AT TIME ZONE 'America/Santiago'

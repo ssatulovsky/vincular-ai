@@ -22,6 +22,7 @@ import {
   ESPERA_VIDEO_AVATAR_S,
   GESTOS_AL_ESCUCHAR,
   GESTOS_AL_HABLAR,
+  MAX_SESION_AVATAR_MIN,
   minutosAvatarHoy,
 } from '../companero/avatarAnimado.ts';
 import { leerImagenAvatar } from '../companero/avatares.ts';
@@ -74,8 +75,8 @@ export async function encenderAvatar(e: {
       return null;
     }
     caraDePrueba = !cara.propia;
-    // Simli corta la sesión al llegar al tope: nunca más que lo que le queda del día (ni más de 30 min).
-    const maxSesionS = Math.max(60, Math.min(30 * 60, Math.floor((c.maxMinutosDia - minutosHoy) * 60)));
+    // Simli corta la sesión al llegar al tope: nunca más que lo que le queda del día (ni más del máximo).
+    const maxSesionS = Math.max(60, Math.min(MAX_SESION_AVATAR_MIN * 60, Math.floor((c.maxMinutosDia - minutosHoy) * 60)));
     const simli = new AvatarSimli(acceso, { caraId: cara.caraId, maxSesionS, maxInactividadS: c.inactividadS, zoom: c.zoom }, livekit, IDENTIDAD_AVATAR);
     avatar = simli;
     arrancar = () => simli.start(sesion, room);
