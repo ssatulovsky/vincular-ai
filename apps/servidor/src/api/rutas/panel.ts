@@ -104,8 +104,10 @@ export const rutasPanel =
       const persona = p.rows[0];
       if (!persona) throw new ErrorHttp(404, 'Persona inexistente');
       const [contactos, dispositivos, equipo, consentimientos, companero] = await Promise.all([
-        app.bd.query<{ id: string; nombre_cifrado: Buffer; relacion: string; telefono_cifrado: Buffer | null; es_cuidador: boolean; prioridad_emergencia: number | null; permisos: Record<string, boolean> }>(
-          'SELECT id, nombre_cifrado, relacion, telefono_cifrado, es_cuidador, prioridad_emergencia, permisos FROM contacto WHERE persona_id = $1 AND dado_de_baja_en IS NULL ORDER BY prioridad_emergencia NULLS LAST, creado_en',
+        app.bd.query<{ id: string; nombre_cifrado: Buffer; relacion: string; telefono_cifrado: Buffer | null; es_cuidador: boolean; prioridad_emergencia: number | null; permisos: Record<string, boolean>; acceso: string | null }>(
+          `SELECT k.id, k.nombre_cifrado, k.relacion, k.telefono_cifrado, k.es_cuidador, k.prioridad_emergencia, k.permisos,
+                  (SELECT email FROM cuenta c WHERE c.contacto_id = k.id AND c.activa LIMIT 1) AS acceso
+             FROM contacto k WHERE k.persona_id = $1 AND k.dado_de_baja_en IS NULL ORDER BY k.prioridad_emergencia NULLS LAST, k.creado_en`,
           [id],
         ),
         app.bd.query('SELECT id, nombre, creado_en AS "creadoEn", ultimo_uso_en AS "ultimoUsoEn", revocado_en AS "revocadoEn" FROM dispositivo WHERE persona_id = $1 ORDER BY creado_en DESC', [id]),
@@ -138,6 +140,7 @@ export const rutasPanel =
           esCuidador: c.es_cuidador,
           prioridadEmergencia: c.prioridad_emergencia,
           permisos: c.permisos,
+          accesoFamiliar: c.acceso,
         })),
         dispositivos: dispositivos.rows,
         equipo: equipo.rows,

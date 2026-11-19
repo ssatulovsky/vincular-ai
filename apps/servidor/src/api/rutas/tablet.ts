@@ -7,6 +7,7 @@ import type { Aplicacion } from '../servidor.ts';
 const HTML = readFileSync(new URL('../../../publico/tablet.html', import.meta.url), 'utf8');
 const HTML_COMPANERO = readFileSync(new URL('../../../publico/companero.html', import.meta.url), 'utf8');
 const HTML_PANEL = readFileSync(new URL('../../../publico/panel.html', import.meta.url), 'utf8');
+const HTML_FAMILIA = readFileSync(new URL('../../../publico/familia.html', import.meta.url), 'utf8');
 
 // Cliente de LiveKit servido desde el propio servidor (sin CDN de terceros).
 // El paquete no exporta el archivo UMD: se ubica junto a su punto de entrada (dist/).
@@ -64,5 +65,16 @@ export const rutasTablet =
         .header('permissions-policy', 'microphone=(), camera=()')
         .header('cache-control', 'no-store')
         .send(HTML_PANEL),
+    );
+
+    /** Página de la familia: solo lo que la persona autorizó, nunca transcripciones. */
+    f.get('/familia', async (_req, reply) =>
+      reply
+        .type('text/html; charset=utf-8')
+        .header('content-security-policy', CSP)
+        .header('referrer-policy', 'no-referrer')
+        .header('permissions-policy', 'microphone=(), camera=()')
+        .header('cache-control', 'no-store')
+        .send(HTML_FAMILIA),
     );
   };

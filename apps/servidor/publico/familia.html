@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1E5A47">
+<title>Vincular-IA · Familia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /*
+   * Página de la familia. Pensada para el teléfono. Una sola idea por línea, en palabras simples.
+   * Lo que destaca: la fila de 7 puntos con los días que conversó. Nunca hay transcripciones.
+   */
+  :root { --fondo: #EEF2EF; --superficie: #FFFFFF; --tinta: #12221B; --tinta-suave: #4A5E55; --linea: #D3DDD7; --botella: #1E5A47; --botella-claro: #DCE9E2; --mostaza: #E2A41F; --alerta: #A3121A; --ambar: #A35A0C; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--fondo); color: var(--tinta); font: 18px/1.5 "Atkinson Hyperlegible", Verdana, sans-serif; }
+  .oculto { display: none !important; }
+  :focus-visible { outline: 3px solid var(--mostaza); outline-offset: 2px; }
+  main { max-width: 620px; margin: 0 auto; padding: 24px 18px 60px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 20px; margin: 0 0 8px; }
+  p { margin: 0 0 10px; }
+  .suave { color: var(--tinta-suave); }
+  .tarjeta { background: var(--superficie); border: 1px solid var(--linea); border-radius: 14px; padding: 18px 20px; margin: 14px 0; }
+  label { display: block; font-weight: 700; margin: 12px 0 4px; }
+  input, textarea { font: inherit; width: 100%; padding: 11px 13px; border: 1px solid #A9B8B0; border-radius: 10px; background: #fff; color: inherit; }
+  textarea { min-height: 96px; resize: vertical; }
+  .boton { font: inherit; font-weight: 700; border: 2px solid var(--botella); background: var(--botella); color: #fff; padding: 10px 18px; border-radius: 10px; cursor: pointer; margin-top: 12px; }
+  .boton.sec { background: #fff; color: var(--botella); }
+  .error { color: var(--alerta); font-weight: 700; min-height: 1.4em; margin-top: 8px; }
+  .ok { color: var(--botella); font-weight: 700; }
+  .barra { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .barra button { background: none; border: 0; color: var(--botella); text-decoration: underline; font: inherit; cursor: pointer; }
+
+  /* La semana: 7 puntos, del más antiguo a hoy; lleno = conversó ese día. */
+  .semana { display: flex; justify-content: space-between; margin: 14px 0 4px; max-width: 420px; }
+  .dia { display: grid; justify-items: center; gap: 6px; font-size: 14px; color: var(--tinta-suave); }
+  .dia i { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--botella); }
+  .dia[data-hablo="true"] i { background: var(--botella); }
+  .dia[data-hoy="true"] { color: var(--tinta); font-weight: 700; }
+  .linea { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--linea); }
+  .linea:first-of-type { border-top: 0; }
+  .linea strong { min-width: 9.5em; }
+  .lista { list-style: none; padding: 0; margin: 0; }
+  .lista li { padding: 10px 0; border-top: 1px solid var(--linea); }
+  .lista li:first-child { border-top: 0; }
+  .estado { font-size: 14px; font-weight: 700; padding: 1px 8px; border-radius: 6px; background: var(--botella-claro); color: var(--botella); white-space: nowrap; }
+  .estado[data-e="pendiente"] { background: #F3E6C7; color: #6B4306; }
+  .estado[data-e="descartada"] { background: #E8E8E8; color: #444; }
+  .estado[data-e="no_atendido"] { background: #FBE9EA; color: var(--alerta); }
+  .nota { font-size: 15px; color: var(--tinta-suave); }
+  @media (max-width: 420px) { .linea { flex-direction: column; gap: 2px; } .dia i { width: 26px; height: 26px; } }
+</style>
+</head>
+<body>
+<main>
+  <section id="ingreso" class="oculto">
+    <h1>Vincular-IA para familias</h1>
+    <p class="suave">Ingrese con el correo y la contraseña que le entregó el equipo.</p>
+    <form id="form-ingreso" class="tarjeta">
+      <label for="email">Correo</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="contrasena">Contraseña</label>
+      <input id="contrasena" type="password" autocomplete="current-password" required>
+      <button class="boton" type="submit">Ingresar</button>
+      <p class="error" id="error-ingreso" role="alert"></p>
+    </form>
+  </section>
+
+  <section id="app" class="oculto">
+    <div class="barra"><span class="suave" id="saludo"></span><button type="button" id="salir">Salir</button></div>
+    <div id="contenido"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const CLAVE = 'vincular.tokenFamilia';
+  const leer = () => { try { return sessionStorage.getItem(CLAVE); } catch { return null; } };
+  const guardar = (v) => { try { v ? sessionStorage.setItem(CLAVE, v) : sessionStorage.removeItem(CLAVE); } catch {} };
+  let token = leer();
+
+  /** Textos siempre como textContent: nada se interpreta como HTML. */
+  function h(etiqueta, attrs = {}, ...hijos) {
+    const el = document.createElement(etiqueta);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else if (k === 'class') el.className = v;
+      else if (k === 'dataset') Object.assign(el.dataset, v);
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const c of hijos.flat()) if (c !== null && c !== undefined && c !== false) el.append(c instanceof Node ? c : String(c));
+    return el;
+  }
+  const fecha = (d, hora = false) => new Date(d).toLocaleString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', ...(hora ? { hour: '2-digit', minute: '2-digit' } : {}) });
+
+  async function api(metodo, url, cuerpo) {
+    const r = await fetch(url, { method: metodo, headers: { authorization: `Bearer ${token}`, ...(cuerpo ? { 'content-type': 'application/json' } : {}) }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
+    if (r.status === 401) { guardar(null); token = null; mostrarIngreso('Su sesión venció. Ingrese de nuevo.'); throw new Error('Sesión vencida'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error ?? `Error ${r.status}`);
+    return d;
+  }
+
+  function mostrarIngreso(mensaje = '') {
+    $('app').classList.add('oculto'); $('ingreso').classList.remove('oculto');
+    $('error-ingreso').textContent = mensaje;
+  }
+  $('form-ingreso').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const r = await fetch('/api/auth/ingresar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: $('email').value, contrasena: $('contrasena').value }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { $('error-ingreso').textContent = d.error ?? 'No se pudo ingresar.'; return; }
+    token = d.token; guardar(token); $('contrasena').value = '';
+    iniciar();
+  });
+  $('salir').addEventListener('click', async () => { try { await api('POST', '/api/auth/salir'); } catch {} guardar(null); token = null; mostrarIngreso(); });
+
+  const ANIMO = { bien: 'Se la ha escuchado bien.', regular: 'Ánimo regular, con días mejores que otros.', bajo: 'Se la ha escuchado más baja de ánimo.', sin_datos: 'Todavía no hay suficiente para decirlo.' };
+  const DESCANSO = { bien: 'Ha contado que duerme bien.', con_dificultades: 'Ha contado algunas noches de mal dormir.', sin_datos: 'No ha hablado de cómo duerme.' };
+  const TIPO_AVISO = { alerta: 'Alerta', emergencia: 'Emergencia', medicacion: 'Medicación sin confirmar' };
+
+  async function iniciar() {
+    if (!token) return mostrarIngreso();
+    let yo;
+    try { yo = await api('GET', '/api/yo'); } catch { return; }
+    if (yo.tipo !== 'familiar') { guardar(null); token = null; return mostrarIngreso('Esta página es para familiares. El equipo usa el panel.'); }
+    $('ingreso').classList.add('oculto'); $('app').classList.remove('oculto');
+    await pintar();
+  }
+
+  async function pintar() {
+    const c = $('contenido');
+    c.replaceChildren(h('p', { class: 'suave' }, 'Cargando…'));
+    let r, propuestas;
+    try { [r, { propuestas }] = await Promise.all([api('GET', '/api/familia/resumen'), api('GET', '/api/familia/propuestas')]); }
+    catch (e) { c.replaceChildren(h('p', { class: 'error' }, e.message)); return; }
+    const n = r.persona.nombre;
+    $('saludo').textContent = `Hola, ${r.familiar.split(' ')[0]}`;
+    const bloques = [];
+    const ninguno = !r.autorizado.bienestar && !r.autorizado.medicacion && !r.autorizado.citas;
+
+    if (r.bienestar) {
+      const b = r.bienestar;
+      const hoy = new Date();
+      const dias = b.dias.map((hablo, i) => {
+        const d = new Date(hoy.getTime() - (6 - i) * 864e5);
+        return h('div', { class: 'dia', dataset: { hablo: String(hablo), hoy: String(i === 6) } }, h('i', { 'aria-hidden': 'true' }), i === 6 ? 'hoy' : d.toLocaleDateString('es-CL', { weekday: 'narrow' }));
+      });
+      const contactos = b.contactosHumanos === 0 ? 'No ha contado contactos con otras personas esta semana.'
+        : `Contó ${b.contactosHumanos} ${b.contactosHumanos === 1 ? 'contacto' : 'contactos'} con otras personas (llamadas, visitas, salidas)${b.contactosSemanaAnterior ? `; la semana anterior, ${b.contactosSemanaAnterior}` : ''}.`;
+      bloques.push(
+        h('h1', {}, `${n} conversó con su compañero ${b.diasConConversacion} de los últimos 7 días`),
+        h('div', { class: 'semana', role: 'img', 'aria-label': `Días en que conversó: ${b.diasConConversacion} de 7` }, dias),
+        h('div', { class: 'tarjeta' }, h('h2', {}, 'Esta semana'),
+          h('div', { class: 'linea' }, h('strong', {}, 'Ánimo'), h('span', {}, ANIMO[b.animo])),
+          h('div', { class: 'linea' }, h('strong', {}, 'Descanso'), h('span', {}, DESCANSO[b.descanso])),
+          h('div', { class: 'linea' }, h('strong', {}, 'Otras personas'), h('span', {}, contactos)),
+          h('p', { class: 'nota', style: 'margin-top:8px' }, `El compañero está para acercar a ${n} a su gente, no para reemplazarla. Cada llamada o visita suma.`)));
+    } else {
+      bloques.push(h('h1', {}, `Hola. Aquí verá cómo está ${n}`));
+      if (ninguno) bloques.push(h('div', { class: 'tarjeta' }, h('p', {}, `${n} todavía no ha autorizado compartir su resumen con usted. Lo decide ${n}; si quiere, conversen sobre esto.`)));
+    }
+
+    if (r.medicacion) {
+      bloques.push(h('div', { class: 'tarjeta' }, h('h2', {}, 'Medicación'),
+        r.medicacion.total ? h('p', {}, `Confirmó ${r.medicacion.confirmadas} de ${r.medicacion.total} dosis en los últimos 7 días.`) : h('p', { class: 'suave' }, 'No hay dosis registradas en los últimos 7 días.'),
+        h('p', { class: 'nota' }, 'Cualquier cambio en sus remedios lo decide su médico.')));
+    }
+
+    if (r.citas) {
+      bloques.push(h('div', { class: 'tarjeta' }, h('h2', {}, 'Próximas citas'),
+        r.citas.length ? h('ul', { class: 'lista' }, r.citas.map((x) => h('li', {}, h('div', {}, h('strong', {}, fecha(x.fecha, true))), h('div', {}, x.lugar),
+          h('button', { class: 'boton sec', type: 'button', onclick: () => verHoja(r, x) }, 'Ver hoja para el control')))) : h('p', { class: 'suave' }, 'Sin citas en los próximos dos meses.')));
+    }
+
+    bloques.push(h('div', { class: 'tarjeta' }, h('h2', {}, 'Avisos que usted recibió'),
+      r.avisos.length ? h('ul', { class: 'lista' }, r.avisos.map((a) => h('li', {}, h('strong', {}, TIPO_AVISO[a.tipo]), ` · ${fecha(a.fecha, true)}${a.canal ? ` · por ${a.canal === 'sms' ? 'SMS' : 'llamada'}` : ''} `,
+        h('span', { class: 'estado', dataset: { e: a.atendido ? 'aceptada' : 'no_atendido' } }, a.atendido ? 'Atendido' : 'Sin acuse todavía')))) : h('p', { class: 'suave' }, 'No ha recibido avisos en los últimos 30 días.'),
+      h('p', { class: 'nota' }, `Si cree que ${n} está en peligro, no espere un aviso: llame al SAMU ${r.emergencia.samu}. Línea de prevención del suicidio: ${r.emergencia.prevencionSuicidio}.`)));
+
+    // Propuestas
+    const texto = h('textarea', { id: 'propuesta', maxlength: '500', placeholder: `Por ejemplo: "Recordarle que el domingo es el cumpleaños de su nieta" o "Le haría bien salir a caminar por la costanera".` });
+    const estado = h('p', { role: 'status' });
+    const lista = propuestas.length ? h('ul', { class: 'lista', style: 'margin-top:12px' }, propuestas.map((p) => h('li', {},
+      h('div', {}, p.texto), h('div', { class: 'nota' }, h('span', { class: 'estado', dataset: { e: p.estado } }, p.estado === 'pendiente' ? 'En revisión' : p.estado === 'aceptada' ? 'Aceptada' : 'No se aplicará'),
+        ` ${new Date(p.creadaEn).toLocaleDateString('es-CL')}`, p.respuesta ? ` · El equipo respondió: ${p.respuesta}` : '')))) : null;
+    bloques.push(h('div', { class: 'tarjeta' }, h('h2', {}, 'Proponer un recordatorio o un tema'),
+      h('p', { class: 'suave' }, `Lo revisa el equipo que acompaña a ${n} antes de que el compañero lo use.`),
+      h('label', { for: 'propuesta' }, 'Su propuesta'), texto,
+      h('button', { class: 'boton', type: 'button', onclick: async () => {
+        estado.className = ''; estado.textContent = '';
+        try { await api('POST', '/api/familia/propuestas', { texto: texto.value }); estado.className = 'ok'; estado.textContent = 'Enviada al equipo.'; texto.value = ''; setTimeout(pintar, 900); }
+        catch (e) { estado.className = 'error'; estado.textContent = e.message; }
+      } }, 'Enviar al equipo'), estado, lista));
+
+    bloques.push(h('p', { class: 'nota', style: 'margin-top:20px' }, `Las conversaciones de ${n} con su compañero son suyas: aquí nunca verá lo que conversan. Lo que ve aquí es lo que ${n} autorizó compartir con usted.`));
+    c.replaceChildren(...bloques);
+  }
+
+  async function verHoja(r, cita) {
+    const res = await fetch(`/api/personas/${encodeURIComponent((await api('GET', '/api/yo')).personaId)}/citas/${cita.id}/hoja`, { headers: { authorization: `Bearer ${token}` } });
+    if (!res.ok) return alert('No se pudo abrir la hoja.');
+    const url = URL.createObjectURL(new Blob([await res.text()], { type: 'text/html' }));
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  iniciar();
+})();
+</script>
+</body>
+</html>

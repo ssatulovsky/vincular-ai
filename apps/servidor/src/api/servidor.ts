@@ -28,6 +28,7 @@ import { rutasTablet } from './rutas/tablet.ts';
 import { rutasCompanero } from './rutas/companero.ts';
 import { rutasTiempoReal } from './rutas/tiempoReal.ts';
 import { rutasPanel } from './rutas/panel.ts';
+import { rutasFamilia } from './rutas/familia.ts';
 import { readFileSync } from 'node:fs';
 import { ServiciosVoz, validarCatalogo, type CatalogoVoces } from '@vincular/voz';
 
@@ -156,6 +157,7 @@ export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
   await f.register(rutasCompanero(app));
   await f.register(rutasTiempoReal(app));
   await f.register(rutasPanel(app));
+  await f.register(rutasFamilia(app));
   await f.register(rutasTablet(app));
   return f;
 }
