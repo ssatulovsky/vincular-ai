@@ -36,6 +36,7 @@ export function configDePrueba(extra: Partial<Config> = {}): Config {
     medicacion: { segundoAvisoMin: 30, sinRespuestaMin: 30, vencimientoMin: 60 },
     planificador: false,
     companero: { maxRondasAvatarDia: 2 },
+    avatarAnimado: null,
     tiempoReal: null,
     // Twilio apunta a un puerto cerrado: los envíos fallan de verdad y la cadena avanza.
     escalamiento: {

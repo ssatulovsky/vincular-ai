@@ -65,6 +65,9 @@
     transition: box-shadow 90ms linear, transform 90ms linear, filter 90ms linear;
   }
   .dial.con-retrato { color: transparent; }
+  /* Con avatar animado, la cara que habla ocupa el mismo círculo que el retrato y no "respira". */
+  .dial video { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: center 28%; pointer-events: none; }
+  .dial.con-video { background-image: none !important; color: transparent; animation: none !important; transform: none; filter: none; }
   .dial[data-estado="libre"], .dial[data-estado="pausa"] { animation: respirar 5s ease-in-out infinite; }
   .dial[data-estado="escuchando"] { --anillo: var(--mostaza); }
   .dial[data-estado="hablando"] { --anillo: var(--botella-claro); }
@@ -548,12 +551,19 @@
       const { url, token } = await r.json();
       if (!modoTR) return; // se pausó mientras conectaba
       sala = new LK.Room({ audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-      sala.on(LK.RoomEvent.TrackSubscribed, (pista) => {
+      sala.on(LK.RoomEvent.TrackSubscribed, (pista, _pub, quien) => {
+        // Video solo del avatar animado del compañero (si está encendido en el servidor).
+        if (pista.kind === 'video') { if (quien?.identity === IDENTIDAD_AVATAR) mostrarVideoAvatar(pista); return; }
         if (pista.kind !== 'audio') return;
         const el = pista.attach();
         el.dataset.tr = '1';
         document.body.append(el);
         animarPistaTR(new MediaStream([pista.mediaStreamTrack]));
+      });
+      // Si el avatar se va (falla o inactividad), vuelve el retrato; la voz sigue por la pista directa.
+      sala.on(LK.RoomEvent.TrackUnsubscribed, (pista) => {
+        if (pista.kind === 'video') quitarVideoAvatar();
+        pista.detach().forEach((el) => el.remove());
       });
       const estadoDelAgente = (p) => {
         const e = ESTADOS_AGENTE[p?.attributes?.['lk.agent.state']];
@@ -607,8 +617,24 @@
     }
   }
 
+  const IDENTIDAD_AVATAR = 'vincular-avatar';
+  function mostrarVideoAvatar(pista) {
+    quitarVideoAvatar();
+    const v = pista.attach();
+    v.muted = true; // la voz llega por su propia pista de audio
+    v.playsInline = true;
+    v.setAttribute('aria-hidden', 'true');
+    $('dial').prepend(v);
+    $('dial').classList.add('con-video');
+  }
+  function quitarVideoAvatar() {
+    $('dial').querySelectorAll('video').forEach((v) => v.remove());
+    $('dial').classList.remove('con-video');
+  }
+
   function terminarTiempoReal() {
     modoTR = false;
+    quitarVideoAvatar();
     clearInterval(vigiaTR);
     cancelAnimationFrame(cuadroTR);
     $('dial').style.setProperty('--habla', 0);

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { Consultable } from '../db/conexion.ts';
+import { minutosAvatarDelMes } from '../companero/avatarAnimado.ts';
 
 /**
  * Costo de los modelos por conversación y por persona al mes, a partir de `uso_modelo`.
@@ -10,7 +11,19 @@ import type { Consultable } from '../db/conexion.ts';
 const esquemaPrecios = z.object({
   verificadoEn: z.string().nullable().default(null),
   precios: z.record(z.string(), z.object({ entradaUsdPorMillon: z.number().nonnegative(), salidaUsdPorMillon: z.number().nonnegative() })).default({}),
+  // Servicios que cobran por minuto (p. ej. el avatar animado: "lemonslice/avatar").
+  porMinuto: z.record(z.string(), z.object({ usdPorMinuto: z.number().nonnegative() })).default({}),
 });
+
+/** Minutos de avatar y su costo; usd null si el proveedor no tiene precio configurado. */
+export interface CostoAvatar {
+  minutos: number;
+  usd: number | null;
+}
+function costoAvatar(p: TablaPrecios, proveedor: string | null, minutos: number): CostoAvatar {
+  const precio = proveedor ? p.porMinuto[`${proveedor}/avatar`] : undefined;
+  return { minutos: Math.round(minutos * 10) / 10, usd: minutos === 0 ? 0 : precio ? minutos * precio.usdPorMinuto : null };
+}
 
 export type TablaPrecios = z.infer<typeof esquemaPrecios>;
 
@@ -89,12 +102,20 @@ export async function costosDelMes(bd: Consultable, precios: TablaPrecios, mes: 
     (porPersona.get(clave) ?? porPersona.set(clave, []).get(clave)!).push(f);
     if (f.sesion_id) (sesiones.get(clave) ?? sesiones.set(clave, new Set()).get(clave)!).add(f.sesion_id);
   }
+  // El avatar se cobra por minuto, aparte de los modelos (decisión 0016).
+  const avatar = await minutosAvatarDelMes(bd, mes);
+  const minutosDe = new Map(avatar.map((a) => [a.personaId, a]));
+  for (const a of avatar) if (!porPersona.has(a.personaId)) porPersona.set(a.personaId, []);
   const personas = [...porPersona.entries()].map(([personaId, filas]) => {
     const total = acumular(filas, precios);
     const n = sesiones.get(personaId)?.size ?? 0;
-    return { personaId, sesiones: n, usdPorConversacion: total.usd !== null && n > 0 ? total.usd / n : null, ...total };
+    const a = minutosDe.get(personaId);
+    return { personaId, sesiones: n, usdPorConversacion: total.usd !== null && n > 0 ? total.usd / n : null, ...total, avatar: costoAvatar(precios, a?.proveedor ?? null, a?.minutos ?? 0) };
   });
-  return { mes, preciosVerificadosEn: precios.verificadoEn, total: acumular(r.rows, precios), personas };
+  const minutosTotales = avatar.reduce((t, a) => t + a.minutos, 0);
+  const proveedores = [...new Set(avatar.map((a) => a.proveedor))];
+  const avatarTotal = proveedores.length <= 1 ? costoAvatar(precios, proveedores[0] ?? null, minutosTotales) : { minutos: Math.round(minutosTotales * 10) / 10, usd: personas.reduce<number | null>((t, x) => (t === null || x.avatar.usd === null ? null : t + x.avatar.usd), 0) };
+  return { mes, preciosVerificadosEn: precios.verificadoEn, total: { ...acumular(r.rows, precios), avatar: avatarTotal }, personas };
 }
 
 export async function costoDeSesion(bd: Consultable, precios: TablaPrecios, sesionId: string): Promise<ResumenCosto> {
