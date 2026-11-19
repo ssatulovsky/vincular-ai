@@ -7,6 +7,7 @@ import type { ContactosEmergencia } from '@vincular/seguridad-clinica';
 import type { ConfigVoz } from '@vincular/voz';
 import type { PlazosMedicacion } from '../medicacion/agenda.ts';
 import type { ConfigTwilio } from '../escalamiento/twilio.ts';
+import type { ConfigAvatarAnimado } from '../companero/avatarAnimado.ts';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -85,6 +86,22 @@ const esquemaEntorno = esquemaEntornoVoz.extend({
   TIEMPO_REAL_PUERTO_AGENTE: z.coerce.number().int().min(1024).max(65535).default(8081),
   // Diseño del compañero: grupos de 3 retratos que se pueden crear por persona y día (costo).
   AVATAR_RONDAS_POR_DIA: z.coerce.number().int().min(0).max(20).default(4),
+  // ── Avatar animado en tiempo real (opcional, con costo por minuto) ──
+  // 'ninguno' = la tablet muestra el retrato que respira (sin costo). 'simli' o 'lemonslice' = el
+  // retrato elegido habla con movimiento de boca y rostro. Cada uno necesita su clave.
+  AVATAR_ANIMADO: z.enum(['ninguno', 'simli', 'lemonslice']).default('ninguno'),
+  LEMONSLICE_API_KEY: z.string().min(10).optional(),
+  SIMLI_API_KEY: z.string().min(10).optional(),
+  SIMLI_API_URL: z.string().url().default('https://api.simli.ai'),
+  // Solo para probar (p. ej. con el plan gratuito, que no crea caras propias): una cara del catálogo
+  // de Simli que se usa mientras la cara propia de la persona no está lista. No es su retrato.
+  SIMLI_CARA_PRUEBA: z.string().uuid('SIMLI_CARA_PRUEBA debe ser el ID de una cara de Simli').optional(),
+  // Acercamiento de la cámara (1 = encuadre del proveedor; Simli arma de la cintura hacia arriba).
+  SIMLI_ZOOM: z.coerce.number().gt(0).max(4).optional(),
+  // Tope de minutos de avatar por persona y día (hora de Chile): pasado el tope, vuelve el retrato.
+  AVATAR_ANIMADO_MAX_MINUTOS_DIA: z.coerce.number().int().min(0).max(600).default(20),
+  // Segundos sin hablar tras los cuales el proveedor cierra el avatar (deja de cobrar).
+  AVATAR_ANIMADO_INACTIVIDAD_S: z.coerce.number().int().min(15).max(600).default(45),
   ESCALAMIENTO_EMERGENCIA_SIN_RESPUESTA_MIN: z.coerce.number().int().positive().default(10),
 });
 
@@ -136,6 +153,8 @@ export interface Config {
   medicacion: PlazosMedicacion;
   planificador: boolean;
   companero: { maxRondasAvatarDia: number };
+  /** null = sin avatar animado: la tablet muestra el retrato (requiere tiempo real). */
+  avatarAnimado: ConfigAvatarAnimado | null;
   /** null = sin tiempo real (la tablet usa el modo manos libres por turnos). */
   tiempoReal: {
     urlPublica: string;
@@ -153,6 +172,17 @@ export interface Config {
     voz: { idioma: string; voz?: string | undefined };
     emergenciaSinRespuestaMin: number;
   };
+}
+
+/** El avatar animado exige tiempo real (el proveedor entra a la sala por la URL pública) y su clave. */
+function configAvatarDe(e: z.infer<typeof esquemaEntorno>): ConfigAvatarAnimado | null {
+  if (!e.LIVEKIT_URL_PUBLICA) return null;
+  const topes = { maxMinutosDia: e.AVATAR_ANIMADO_MAX_MINUTOS_DIA, inactividadS: e.AVATAR_ANIMADO_INACTIVIDAD_S };
+  if (e.AVATAR_ANIMADO === 'lemonslice' && e.LEMONSLICE_API_KEY) return { proveedor: 'lemonslice', apiKey: e.LEMONSLICE_API_KEY, ...topes };
+  if (e.AVATAR_ANIMADO === 'simli' && e.SIMLI_API_KEY) {
+    return { proveedor: 'simli', apiKey: e.SIMLI_API_KEY, apiUrl: e.SIMLI_API_URL.replace(/\/+$/, ''), caraPrueba: e.SIMLI_CARA_PRUEBA ?? null, zoom: e.SIMLI_ZOOM ?? null, ...topes };
+  }
+  return null;
 }
 
 /**
@@ -235,6 +265,7 @@ export function cargarConfig(entornoOriginal: NodeJS.ProcessEnv = process.env): 
     medicacion: { segundoAvisoMin: e.MEDICACION_SEGUNDO_AVISO_MIN, sinRespuestaMin: e.MEDICACION_SIN_RESPUESTA_MIN, vencimientoMin: 60 },
     planificador: e.PLANIFICADOR === 'si',
     companero: { maxRondasAvatarDia: e.AVATAR_RONDAS_POR_DIA },
+    avatarAnimado: configAvatarDe(e),
     tiempoReal:
       e.LIVEKIT_URL_PUBLICA && e.LIVEKIT_URL && e.LIVEKIT_API_KEY && e.LIVEKIT_API_SECRET
         ? {

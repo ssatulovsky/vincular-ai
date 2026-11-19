@@ -5,6 +5,7 @@
  *   voz de la persona ──► voz a texto en tiempo real (ElevenLabs, que también detecta el fin del turno)
  *        ──► el MISMO orquestador de Vincular (detector de riesgo, guardián, memoria, plan)
  *        ──► texto a voz en streaming (ElevenLabs, la voz que eligió la persona) ──► tablet
+ *        (con avatar animado, la voz pasa antes por el proveedor del avatar: ver avatar.ts)
  *
  * El paso "de lenguaje" no es un modelo suelto: es el orquestador, así que ninguna respuesta sale
  * sin pasar por el guardián y cada turno queda registrado como en la tablet por turnos. Por eso
@@ -19,6 +20,7 @@ import { cargarConfig } from '../config/config.ts';
 import { abrirSesionConEmergencia, leerSesion } from '../conversacion/repositorio.ts';
 import { leerPerfil, PERFIL_POR_DEFECTO } from '../conversacion/perfil.ts';
 import { procesarSesion } from '../memoria/extraccion.ts';
+import { encenderAvatar } from './avatar.ts';
 import { flujoDeTexto, personaDelParticipante, silencioFinDeTurno, ultimoMensajeDeLaPersona, vozParaTiempoReal } from './utilidades.ts';
 
 const TEMA = 'vincular';
@@ -130,7 +132,14 @@ export default defineAgent({
       }
     });
 
+    // Avatar animado opcional: se enciende antes de iniciar la sesión; si no, voz directa y retrato.
+    const apagarAvatar = await encenderAvatar({ app, room: ctx.room, sesion, personaId: quien.personaId, sesionId, avatarId: perfil.avatar_id, modoEmergencia, registro }).catch((e: Error) => {
+      registro('agente.avatar_falla', { error: e.message.slice(0, 200) });
+      return null;
+    });
+
     ctx.addShutdownCallback(async () => {
+      await apagarAvatar?.().catch(() => undefined);
       // Al terminar: se cierra la sesión (salvo emergencia en curso) y se extrae su memoria.
       const s = await leerSesion(app.bd, sesionId);
       if (s && !s.modoEmergencia) {
