@@ -4,7 +4,7 @@ import { Room } from '@livekit/rtc-node';
 import { crearAplicacion, type Aplicacion } from '../src/api/servidor.ts';
 import { encenderAvatar } from '../src/agente/avatar.ts';
 import { cargarConfig } from '../src/config/config.ts';
-import { abrirUsoAvatar, cerrarUsoAvatar, decidirAvatar, minutosAvatarDelMes, minutosAvatarHoy, type ConfigAvatarAnimado } from '../src/companero/avatarAnimado.ts';
+import { abrirUsoAvatar, cerrarUsoAvatar, cerrarUsosHuerfanos, decidirAvatar, minutosAvatarDelMes, minutosAvatarHoy, type ConfigAvatarAnimado } from '../src/companero/avatarAnimado.ts';
 import { crearCaraSimli, ErrorSimli, tokenSesionSimli } from '../src/companero/simli.ts';
 import { caraSimliParaSesion, debePedirse, estadoCaraDePersona } from '../src/companero/caras.ts';
 import { configDePrueba, crearEscenario, type Escenario } from './escenario.ts';
@@ -269,5 +269,32 @@ describe('Simli: cliente HTTP', () => {
   it('un 403 al crear la cara se reconoce como falta de cupo', () => {
     expect(new ErrorSimli(403, 'x').sinCupo).toBe(true);
     expect(new ErrorSimli(401, 'x').sinCupo).toBe(false);
+  });
+});
+
+describe('avatar animado: sesiones que quedaron abiertas', () => {
+  it('una sesión abierta hace horas cuenta como máximo 30 minutos (no bloquea el día)', async () => {
+    const s = await nuevaSesion();
+    const antes = await minutosAvatarHoy(e.app.bd, e.ids.persona);
+    // Como la del VPS: abierta hace 6,5 horas por un proceso que se reinició.
+    await e.owner.query(`INSERT INTO uso_avatar (persona_id, sesion_id, proveedor, inicio) VALUES ($1, $2, 'simli', now() - interval '390 minutes')`, [e.ids.persona, s]);
+    const despues = await minutosAvatarHoy(e.app.bd, e.ids.persona);
+    // (Si la prueba corre recién pasada la medianoche de Chile, la sesión cae en ayer y suma 0.)
+    expect(despues - antes).toBeLessThanOrEqual(30.01);
+  });
+
+  it('al arrancar el agente se cierran las abiertas, con su duración máxima posible', async () => {
+    const s = await nuevaSesion();
+    await e.owner.query(`INSERT INTO uso_avatar (persona_id, sesion_id, proveedor, inicio) VALUES ($1, $2, 'simli', now() - interval '390 minutes'), ($1, $2, 'simli', now() - interval '2 minutes')`, [e.ids.persona, s]);
+    expect(await cerrarUsosHuerfanos(e.app.bd)).toBeGreaterThanOrEqual(2);
+    const r = await e.owner.query<{ min: number; motivo_fin: string }>(
+      `SELECT round(extract(epoch FROM (fin - inicio)) / 60)::int AS min, motivo_fin FROM uso_avatar WHERE sesion_id = $1 ORDER BY inicio`,
+      [s],
+    );
+    expect(r.rows).toEqual([
+      { min: 30, motivo_fin: 'interrumpido' },
+      { min: 2, motivo_fin: 'interrumpido' },
+    ]);
+    expect((await e.owner.query('SELECT 1 FROM uso_avatar WHERE fin IS NULL')).rowCount).toBe(0);
   });
 });
