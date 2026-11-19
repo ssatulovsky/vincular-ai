@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1E5A47">
+<link rel="icon" type="image/png" sizes="32x32" href="/marca/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/marca/favicon-64.png">
+<link rel="apple-touch-icon" href="/marca/emblema-180.png">
 <title>Vincular-IA · Panel del equipo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,7 +45,12 @@
   /* ── Estructura ── */
   #app { display: grid; grid-template-columns: 220px 1fr; min-height: 100%; }
   nav { background: var(--botella); color: #fff; padding: 22px 14px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
-  nav .marca { font-weight: 700; font-size: 19px; padding: 0 10px 18px; }
+  nav .marca { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 19px; padding: 0 10px 18px; }
+  nav .marca img, .logo-ingreso img { border-radius: 22%; }
+  .logo-ingreso { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; font-weight: 700; font-size: 22px; }
+  /* "IA" en el ámbar del logo, con contraste suficiente sobre cada fondo. */
+  .logo-ingreso b { color: #A8641C; }
+  nav .marca b { color: #F2B36B; }
   nav button { background: none; border: 0; color: #fff; text-align: left; padding: 10px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
   nav button[aria-current="page"] { background: rgba(255,255,255,.16); font-weight: 700; }
   nav button:hover { background: rgba(255,255,255,.1); }
@@ -168,6 +176,7 @@
 
 <section id="ingreso" class="oculto">
   <form id="form-ingreso">
+    <div class="logo-ingreso"><img src="/marca/emblema-96.png" width="56" height="56" alt=""><span>Vincular-<b>IA</b></span></div>
     <h1>Panel del equipo</h1>
     <p class="suave">Ingrese con la cuenta que le entregó el equipo de Vincular-IA.</p>
     <label for="email">Correo</label>
@@ -181,7 +190,7 @@
 
 <div id="app" class="oculto">
   <nav aria-label="Secciones">
-    <div class="marca">Vincular-IA</div>
+    <div class="marca"><img src="/marca/emblema-96.png" width="32" height="32" alt=""><span>Vincular-<b>IA</b></span></div>
     <button type="button" data-vista="pacientes">Pacientes</button>
     <button type="button" data-vista="alertas" id="nav-alertas">Alertas <span class="contador oculto" id="contador-alertas"></span></button>
     <button type="button" data-vista="equipo" id="nav-equipo" class="oculto">Equipo</button>
