@@ -5,6 +5,7 @@ import { PREFIJO_IDENTIDAD } from '../../agente/utilidades.ts';
 import { auditar } from '../../seguridad/auditoria.ts';
 import { exigirPermiso } from '../../seguridad/permisos.ts';
 import { ErrorHttp, exigirActor, type Aplicacion } from '../servidor.ts';
+import { exigirRequisitosConversacion } from '../requisitos.ts';
 
 
 /**
@@ -24,6 +25,7 @@ export const rutasTiempoReal =
       const actor = exigirActor(req);
       if (actor.tipo !== 'dispositivo') throw new ErrorHttp(403, 'Solo desde la tablet de la persona');
       await exigirPermiso(app.bd, actor, 'conversacion.usar', actor.personaId);
+      await exigirRequisitosConversacion(app, actor);
       const tr = app.config.tiempoReal;
       if (!tr) throw new ErrorHttp(503, 'La conversación en tiempo real no está configurada en este servidor');
 

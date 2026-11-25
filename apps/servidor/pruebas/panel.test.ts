@@ -221,3 +221,18 @@ describe('logo de Vincular-IA', () => {
     expect(ico.headers.location).toBe('/marca/favicon-32.png');
   });
 });
+
+describe('instalable en el celular', () => {
+  it('cada app tiene su manifiesto con ícono, y las páginas lo enlazan', async () => {
+    for (const [app, inicio] of [['tablet', '/tablet'], ['familia', '/familia'], ['panel', '/panel']] as const) {
+      const r = await e.f.inject({ method: 'GET', url: `/manifest-${app}.webmanifest` });
+      expect(r.statusCode).toBe(200);
+      const m = JSON.parse(r.body) as { start_url: string; display: string; icons: Array<{ src: string }> };
+      expect(m.start_url).toBe(inicio);
+      expect(m.display).toBe('standalone');
+      for (const i of m.icons) expect((await e.f.inject({ method: 'GET', url: i.src })).statusCode).toBe(200);
+      expect((await e.f.inject({ method: 'GET', url: inicio })).body).toContain(`/manifest-${app}.webmanifest`);
+    }
+    expect((await e.f.inject({ method: 'GET', url: '/manifest-otra.webmanifest' })).statusCode).toBe(404);
+  });
+});

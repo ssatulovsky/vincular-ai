@@ -1,6 +1,6 @@
 import type { Consultable } from '../db/conexion.ts';
 
-export type RolPersonal = 'supervisor_clinico' | 'enfermera_enlace' | 'gerontologo' | 'guardia' | 'admin_plataforma';
+export type RolPersonal = 'supervisor_clinico' | 'psiquiatra' | 'enfermera_enlace' | 'gerontologo' | 'guardia' | 'admin_plataforma';
 
 export type Actor =
   | { tipo: 'personal'; id: string; rol: RolPersonal; nombre: string }
@@ -29,7 +29,11 @@ export type Accion =
   | 'medicacion.gestionar'
   | 'salud.propia'
   | 'hoja_control.ver'
-  | 'protocolo.gestionar';
+  | 'protocolo.gestionar'
+  | 'evaluacion.leer'
+  | 'evaluacion.registrar'
+  | 'persona.exportar'
+  | 'persona.suprimir';
 
 /** Hechos sobre la relación entre el actor y la persona, resueltos desde la base. */
 export interface Contexto {
@@ -41,7 +45,9 @@ export interface Contexto {
   permisosContacto: Record<string, unknown>;
 }
 
-const CLINICOS: readonly RolPersonal[] = ['supervisor_clinico', 'enfermera_enlace', 'gerontologo'];
+const CLINICOS: readonly RolPersonal[] = ['supervisor_clinico', 'psiquiatra', 'enfermera_enlace', 'gerontologo'];
+/** Responsables clínicos: editan el plan, leen transcripciones por motivo clínico y evalúan el ingreso. */
+const RESPONSABLES: readonly RolPersonal[] = ['supervisor_clinico', 'psiquiatra'];
 
 /**
  * Regla central: la persona mayor es la única dueña de la relación. Cada actor ve solo lo que
@@ -72,7 +78,12 @@ export function decidirPermiso(actor: Actor, accion: Accion, personaId: string |
   switch (accion) {
     case 'protocolo.gestionar':
       // Protocolos de escalamiento y turnos de guardia: decisión clínica y operativa.
-      return rol === 'admin_plataforma' || rol === 'supervisor_clinico';
+      return rol === 'admin_plataforma' || RESPONSABLES.includes(rol);
+    case 'persona.exportar':
+    case 'persona.suprimir':
+      // Derechos de acceso, portabilidad y supresión (Ley 21.719): los tramita la administración,
+      // siempre con motivo y en la auditoría.
+      return rol === 'admin_plataforma';
     case 'cuenta.crear':
     case 'costos.ver':
     case 'persona.crear':
@@ -92,7 +103,10 @@ export function decidirPermiso(actor: Actor, accion: Accion, personaId: string |
       return CLINICOS.includes(rol) && ctx.asignado;
     case 'plan.editar':
     case 'transcripcion.leer':
-      return rol === 'supervisor_clinico' && ctx.asignado;
+    case 'evaluacion.registrar':
+      return RESPONSABLES.includes(rol) && ctx.asignado;
+    case 'evaluacion.leer':
+      return CLINICOS.includes(rol) && ctx.asignado;
     case 'alertas.leer':
     case 'alertas.acusar':
       // La guardia cubre a todas las personas del piloto; el resto, solo a sus asignadas.

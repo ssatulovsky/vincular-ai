@@ -12,7 +12,7 @@ import { ErrorHttp, exigirActor, type Aplicacion } from '../servidor.ts';
 import { ErrorAvatares, exigirAvatarPropio } from '../../companero/avatares.ts';
 
 const uuid = z.string().uuid();
-const ROLES = ['supervisor_clinico', 'enfermera_enlace', 'gerontologo', 'guardia', 'admin_plataforma'] as const;
+const ROLES = ['supervisor_clinico', 'psiquiatra', 'enfermera_enlace', 'gerontologo', 'guardia', 'admin_plataforma'] as const;
 
 /** El avatar elegido debe ser un retrato generado para esa misma persona. */
 async function exigirAvatarDe(app: Aplicacion, personaId: string, avatarId: string | null): Promise<void> {

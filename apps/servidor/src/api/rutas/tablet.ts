@@ -56,6 +56,33 @@ export const rutasTablet =
       if (!archivo) return reply.code(404).send({ error: 'No existe' });
       return reply.type(nombre.endsWith('.jpg') ? 'image/jpeg' : 'image/png').header('cache-control', 'public, max-age=604800').send(archivo);
     });
+    // Instalar como app en el celular o la tablet ("Agregar a pantalla de inicio").
+    const manifiesto = (nombre: string, corto: string, inicio: string, color: string) => ({
+      name: nombre,
+      short_name: corto,
+      lang: 'es-CL',
+      start_url: inicio,
+      scope: inicio,
+      display: 'standalone',
+      orientation: 'any',
+      background_color: '#E7EEEA',
+      theme_color: color,
+      icons: [
+        { src: '/marca/emblema-192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/marca/emblema-512.png', sizes: '512x512', type: 'image/png' },
+      ],
+    });
+    const MANIFIESTOS: Record<string, ReturnType<typeof manifiesto>> = {
+      tablet: manifiesto('Vincular-IA · Mi compañero', 'Mi compañero', '/tablet', '#1E5A47'),
+      familia: manifiesto('Vincular-IA para familias', 'Vincular-IA', '/familia', '#1E5A47'),
+      panel: manifiesto('Vincular-IA · Panel del equipo', 'Vincular-IA', '/panel', '#1E5A47'),
+    };
+    f.get('/manifest-:app.webmanifest', async (req, reply) => {
+      const m = MANIFIESTOS[(req.params as { app: string }).app];
+      if (!m) return reply.code(404).send({ error: 'No existe' });
+      return reply.type('application/manifest+json').header('cache-control', 'public, max-age=86400').send(JSON.stringify(m));
+    });
+
     // Los navegadores piden /favicon.ico por su cuenta.
     f.get('/favicon.ico', async (_req, reply) => reply.redirect('/marca/favicon-32.png', 301));
 
