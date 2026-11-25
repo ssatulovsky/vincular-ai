@@ -9,6 +9,7 @@ import { ErrorHttp, enSegundoPlano, exigirActor, type Aplicacion } from '../serv
 import { generarInformeSesion } from '../../informes/sesion.ts';
 import { procesarSesion } from '../../memoria/extraccion.ts';
 import { MAX_BYTES_AUDIO, procesarTurnoVoz } from '../../voz/turnoVoz.ts';
+import { exigirRequisitosConversacion } from '../requisitos.ts';
 
 type ActorDispositivo = Extract<Actor, { tipo: 'dispositivo' }>;
 
@@ -24,6 +25,7 @@ function exigirDispositivo(actor: Actor | null): ActorDispositivo {
  * TODO(clinico): confirmar la ventana de 24 horas.
  */
 async function abrir(app: Aplicacion, actor: ActorDispositivo, canal: 'texto' | 'voz'): Promise<{ sesionId: string; modoEmergencia: boolean }> {
+  await exigirRequisitosConversacion(app, actor);
   return abrirSesionConEmergencia(app.bd, actor.personaId, actor.id, canal);
 }
 
@@ -80,6 +82,7 @@ export const rutasConversacion =
       let actor: ActorDispositivo | null = null;
       let sesionId: string | null = null;
       let desregistrar: (() => void) | null = null;
+      let bloqueada: Record<string, unknown> | null = null;
       const enviar = (m: unknown) => socket.readyState === socket.OPEN && socket.send(JSON.stringify(m));
       const plazoAuth = setTimeout(() => socket.close(4401, 'sin autenticar'), 10_000);
 
@@ -106,13 +109,27 @@ export const rutasConversacion =
               return;
             }
             clearTimeout(plazoAuth);
+            let s: Awaited<ReturnType<typeof abrir>>;
+            try {
+              s = await abrir(app, a, m.canal);
+            } catch (e) {
+              if (e instanceof ErrorHttp && e.extra.codigo === 'requisitos_pendientes') {
+                // Sin conversación, pero la tablet sigue conectada: los recordatorios de medicación
+                // son un servicio de seguridad y no se cortan por un trámite pendiente.
+                actor = a;
+                bloqueada = { ...e.extra, mensaje: e.message };
+                desregistrar = app.tablets.registrar(a.personaId, enviar);
+                return enviar({ tipo: 'bloqueada', ...bloqueada });
+              }
+              throw e;
+            }
             actor = a;
-            const s = await abrir(app, a, m.canal);
             sesionId = s.sesionId;
             // Desde aquí el servidor puede tomar la iniciativa (recordatorios de medicación).
             desregistrar = app.tablets.registrar(a.personaId, enviar);
             return enviar({ tipo: 'sesion', sesionId, modoEmergencia: s.modoEmergencia, emergencia: { samu: app.config.emergencia.samu, prevencionSuicidio: app.config.emergencia.prevencionSuicidio } });
           }
+          if (bloqueada) return enviar({ tipo: 'bloqueada', ...bloqueada });
           if (!actor || !sesionId) return enviar({ tipo: 'error', error: 'Debe autenticarse primero' });
           if (m.tipo === 'audio') {
             if (!/^audio\/[a-z0-9.+-]+(;\s*codecs=[a-z0-9.,"-]+)?$/i.test(m.mime)) return enviar({ tipo: 'error', error: 'Formato de audio no admitido' });

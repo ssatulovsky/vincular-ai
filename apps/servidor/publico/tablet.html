@@ -7,6 +7,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/marca/favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="/marca/favicon-64.png">
 <link rel="apple-touch-icon" href="/marca/emblema-180.png">
+<link rel="manifest" href="/manifest-tablet.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mi compañero">
 <title>Mi compañero</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -127,6 +131,35 @@
   .configurar h1 { font-size: 32px; margin: 0; }
   .configurar p { margin: 0; color: var(--tinta-suave); font-size: 22px; }
   .error { color: var(--alerta); font-weight: 700; }
+  .dial[data-estado="pausa"] { filter: saturate(.55); cursor: default; }
+  .etiqueta[data-estado="pausa"] { color: var(--tinta-suave); }
+  .conversar:disabled, .acciones button:disabled { opacity: .45; cursor: default; }
+
+  /* Celular: misma lógica, tamaños que caben sin perder legibilidad (nada bajo 20 px). */
+  @media (max-width: 600px) {
+    :root { --radio-boton: min(68vw, 300px); }
+    body { font-size: 22px; }
+    .pantalla { gap: 12px; padding: 12px 14px max(14px, env(safe-area-inset-bottom)); }
+    .cabecera { align-items: flex-start; }
+    .cabecera h1 { font-size: 26px; }
+    .cabecera a.disenar, .estado { font-size: 20px; }
+    .etiqueta { font-size: 24px; }
+    .conversar { font-size: 26px; min-height: 72px; padding: 0 34px; width: 100%; max-width: 360px; }
+    .subtitulos { padding: 16px 18px; min-height: 110px; border-radius: 18px; }
+    .dijo { font-size: 20px; }
+    .responde { font-size: 25px; }
+    .acciones button { font-size: 21px; min-height: 58px; padding: 0 20px; flex: 1 1 auto; }
+    .recordatorio p, .aviso-microfono p { font-size: 23px; }
+    .recordatorio button, .aviso-microfono button { font-size: 23px; min-height: 66px; width: 100%; }
+    .emergencia { font-size: 23px; padding: 14px 16px; }
+    .emergencia span { font-size: 20px; }
+    .configurar { margin: 6vh auto; }
+  }
+  /* Celular acostado: el retrato se achica para que se vea el botón. */
+  @media (max-height: 520px) and (orientation: landscape) {
+    :root { --radio-boton: min(52vh, 240px); }
+    .pantalla { gap: 10px; }
+  }
 </style>
 </head>
 <body>
@@ -197,7 +230,7 @@
   const leerToken = () => { try { return localStorage.getItem(CLAVE); } catch { return null; } };
   const guardarToken = (t) => { try { localStorage.setItem(CLAVE, t); } catch {} };
 
-  let ws = null, intentos = 0, estado = 'desconectado';
+  let ws = null, intentos = 0, estado = 'desconectado', revisionBloqueo = 0, bloqueoPantalla = null;
   let grabadora = null, flujo = null, contextoAudio = null, analizador = null, cuadro = 0;
   let cola = [], indice = 0, turnoTerminado = true, ultimaRespuesta = [], reproductor = null, reproduciendo = false;
   let mensajePausa = null, conversando = false, descartarGrabacion = false, cuadroInterrupcion = 0, temporizadorEscucha = 0;
@@ -208,9 +241,12 @@
     estado = e;
     $('dial').dataset.estado = e;
     $('etiqueta').dataset.estado = e;
-    $('etiqueta').textContent = { libre: conversando ? '' : 'Toque «Conversemos» para hablar', escuchando: 'Le escucho', pensando: 'Pensando…', hablando: 'Toque su cara para interrumpir', desconectado: 'Sin conexión' }[e];
-    $('dial').setAttribute('aria-label', { libre: 'Hablar una vez', escuchando: 'Terminar de hablar', pensando: 'Pensando', hablando: 'Interrumpir', desconectado: 'Sin conexión' }[e]);
-    $('estado').textContent = texto ?? { libre: conversando ? 'Conversando' : 'Listo', escuchando: 'Escuchando…', pensando: 'Pensando…', hablando: 'Hablando', desconectado: 'Reconectando…' }[e];
+    $('etiqueta').textContent = { libre: conversando ? '' : 'Toque «Conversemos» para hablar', escuchando: 'Le escucho', pensando: 'Pensando…', hablando: 'Toque su cara para interrumpir', desconectado: 'Sin conexión', pausa: 'En pausa' }[e];
+    $('dial').setAttribute('aria-label', { libre: 'Hablar una vez', escuchando: 'Terminar de hablar', pensando: 'Pensando', hablando: 'Interrumpir', desconectado: 'Sin conexión', pausa: 'Su compañero está en pausa' }[e]);
+    $('estado').textContent = texto ?? { libre: conversando ? 'Conversando' : 'Listo', escuchando: 'Escuchando…', pensando: 'Pensando…', hablando: 'Hablando', desconectado: 'Reconectando…', pausa: 'En pausa' }[e];
+    // En pausa por un trámite pendiente no se conversa (los recordatorios de medicación siguen).
+    $('conversar').disabled = e === 'pausa';
+    $('mostrar-escribir').disabled = e === 'pausa';
     $('repetir').disabled = e !== 'libre' || ultimaRespuesta.length === 0;
     if (e !== 'hablando') detenerMonitorInterrupcion();
     if (e === 'libre') programarEscucha();
@@ -226,8 +262,18 @@
     temporizadorEscucha = setTimeout(() => { if (conversando && estado === 'libre' && !recordatorioActual) empezarGrabacion(); }, 400);
   }
 
+  // Mientras se conversa, la pantalla no se apaga (si el navegador lo permite).
+  async function mantenerPantalla(si) {
+    try {
+      if (si && !bloqueoPantalla && 'wakeLock' in navigator) bloqueoPantalla = await navigator.wakeLock.request('screen');
+      if (!si && bloqueoPantalla) { await bloqueoPantalla.release(); bloqueoPantalla = null; }
+    } catch { bloqueoPantalla = null; }
+  }
+
   function iniciarConversacion() {
+    if (estado === 'pausa') return;
     conversando = true;
+    mantenerPantalla(true);
     $('conversar').setAttribute('aria-pressed', 'true');
     $('conversar').textContent = 'Pausar';
     $('aviso-microfono').classList.add('oculto');
@@ -239,6 +285,7 @@
   function pausarConversacion(mensaje) {
     if (modoTR) terminarTiempoReal();
     conversando = false;
+    mantenerPantalla(false);
     clearTimeout(temporizadorEscucha);
     $('conversar').setAttribute('aria-pressed', 'false');
     $('conversar').textContent = 'Conversemos';
@@ -321,8 +368,23 @@
       case 'recordatorio_dosis':
         mostrarRecordatorio(m);
         break;
+      case 'bloqueada':
+        // Falta un trámite (consentimiento o evaluación de ingreso): sin conversación, sin culpas.
+        intentos = 0;
+        if (conversando) pausarConversacion();
+        cargarAgenda();
+        cargarCompanero();
+        $('dijo').textContent = '';
+        $('responde').textContent = m.mensaje;
+        fijarEstado('pausa');
+        // Vuelve a consultar cada 10 minutos: cuando el equipo termine, el compañero vuelve solo.
+        clearTimeout(revisionBloqueo);
+        revisionBloqueo = setTimeout(() => ws?.close(), 10 * 60 * 1000);
+        break;
       case 'sesion':
         intentos = 0;
+        clearTimeout(revisionBloqueo);
+        if (estado === 'pausa') $('responde').textContent = 'Toque «Conversemos» y hable con calma, como con alguien que está a su lado.';
         vaciarCola();
         cargarAgenda();
         cargarCompanero();

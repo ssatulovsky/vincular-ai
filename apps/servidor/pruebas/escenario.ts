@@ -5,6 +5,7 @@ import type { Tarea } from '@vincular/ia';
 import { crearAplicacion, crearServidor, type Aplicacion } from '../src/api/servidor.ts';
 import type { Config } from '../src/config/config.ts';
 import { crearPool } from '../src/db/conexion.ts';
+import { CRITERIOS_EXCLUSION } from '../src/seguridad/requisitos.ts';
 import { hashContrasena } from '../src/seguridad/autenticacion.ts';
 
 export const CONTRASENA = 'contrasena-de-prueba-123';
@@ -90,6 +91,9 @@ export async function pedir<T = Record<string, unknown>>(
   return { estado: r.statusCode, datos: (r.body ? JSON.parse(r.body) : {}) as T };
 }
 
+/** Evaluación de ingreso sin criterios de exclusión presentes. */
+export const CRITERIOS_NEGATIVOS = Object.fromEntries(Object.keys(CRITERIOS_EXCLUSION).map((k) => [k, false]));
+
 /** Arma un piloto mínimo: un admin, profesionales, una persona con su tablet y un familiar. */
 export async function crearEscenario(): Promise<Escenario> {
   const app = crearAplicacion(configDePrueba());
@@ -120,6 +124,12 @@ export async function crearEscenario(): Promise<Escenario> {
   const contacto = (await pedir<{ id: string }>(f, 'POST', `/api/personas/${persona}/contactos`, admin, { nombre: 'Camila Muñoz', relacion: 'hija', telefono: '+56911112222', esCuidador: true, permisos: { resumen_bienestar: true } })).datos.id;
   const emailFamiliar = correo('familiar');
   await pedir(f, 'POST', '/api/cuentas', admin, { tipo: 'familiar', email: emailFamiliar, nombre: 'Camila', contrasena: CONTRASENA, contactoId: contacto });
+
+  // Requisitos para conversar (decisión 0018): consentimiento vigente y evaluación de ingreso apta.
+  for (const [p, evaluador] of [[persona, supervisor], [personaAjena, supervisorAjeno]] as const) {
+    await pedir(f, 'POST', `/api/personas/${p}/consentimientos`, admin, { tipo: 'participacion_y_datos', version: '1.0', otorgadoPor: 'persona' });
+    await pedir(f, 'POST', `/api/personas/${p}/evaluaciones`, evaluador.token, { resultado: 'apto', criterios: CRITERIOS_NEGATIVOS });
+  }
 
   const dispositivo = (await pedir<{ token: string }>(f, 'POST', `/api/personas/${persona}/dispositivos`, admin, { nombre: 'Tablet Rosa' })).datos.token;
   const dispositivoAjeno = (await pedir<{ token: string }>(f, 'POST', `/api/personas/${personaAjena}/dispositivos`, admin, { nombre: 'Tablet Luis' })).datos.token;

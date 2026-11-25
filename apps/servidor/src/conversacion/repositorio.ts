@@ -82,6 +82,15 @@ export async function contextoPersona(bd: Consultable, cifrador: Cifrador, perso
  * Abre una sesión y, si hay una emergencia (nivel 3) sin acuse en las últimas 24 h, la deja en
  * modo emergencia desde el inicio: el agente no vuelve a una conversación normal.
  */
+/** ¿Hay una emergencia (nivel 3) de las últimas 24 horas sin acuse humano? */
+export async function hayEmergenciaPendiente(bd: Consultable, personaId: string): Promise<boolean> {
+  const r = await bd.query(
+    `SELECT 1 FROM evento_riesgo WHERE persona_id = $1 AND nivel = 3 AND acusado_en IS NULL AND creado_en > now() - interval '24 hours' LIMIT 1`,
+    [personaId],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
 export async function abrirSesionConEmergencia(
   bd: Consultable,
   personaId: string,

@@ -29,6 +29,7 @@ import { rutasCompanero } from './rutas/companero.ts';
 import { rutasTiempoReal } from './rutas/tiempoReal.ts';
 import { rutasPanel } from './rutas/panel.ts';
 import { rutasFamilia } from './rutas/familia.ts';
+import { rutasIngreso } from './rutas/ingreso.ts';
 import { readFileSync } from 'node:fs';
 import { ServiciosVoz, validarCatalogo, type CatalogoVoces } from '@vincular/voz';
 
@@ -59,6 +60,8 @@ export class ErrorHttp extends Error {
   constructor(
     readonly estado: number,
     mensaje: string,
+    /** Campos adicionales para el cliente (p. ej. el código de un bloqueo). */
+    readonly extra: Record<string, unknown> = {},
   ) {
     super(mensaje);
   }
@@ -132,7 +135,8 @@ export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
     if (error instanceof ZodError) {
       return reply.code(400).send({ error: 'Datos inválidos', detalle: error.issues.map((i) => ({ campo: i.path.join('.'), mensaje: i.message })) });
     }
-    if (error instanceof ErrorPermiso || error instanceof ErrorHttp || error instanceof ErrorConversacion) {
+    if (error instanceof ErrorHttp) return reply.code(error.estado).send({ ...error.extra, error: error.message });
+    if (error instanceof ErrorPermiso || error instanceof ErrorConversacion) {
       return reply.code(error.estado).send({ error: error.message });
     }
     const e = error as { estado?: number; statusCode?: number; message: string };
@@ -158,6 +162,7 @@ export async function crearServidor(app: Aplicacion): Promise<FastifyInstance> {
   await f.register(rutasTiempoReal(app));
   await f.register(rutasPanel(app));
   await f.register(rutasFamilia(app));
+  await f.register(rutasIngreso(app));
   await f.register(rutasTablet(app));
   return f;
 }

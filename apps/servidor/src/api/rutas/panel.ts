@@ -13,7 +13,7 @@ import { estadoCaraDePersona } from '../../companero/caras.ts';
 
 const uuid = z.string().uuid();
 const ESTADOS = ['onboarding', 'activa', 'pausada', 'baja'] as const;
-const ROL_TEXTO: Record<string, string> = { supervisor_clinico: 'psicólogo/a supervisor/a', enfermera_enlace: 'enfermera/o de enlace', gerontologo: 'gerontólogo/a', guardia: 'guardia clínica', admin_plataforma: 'administración' };
+const ROL_TEXTO: Record<string, string> = { supervisor_clinico: 'psicólogo/a supervisor/a', psiquiatra: 'psiquiatra', enfermera_enlace: 'enfermera/o de enlace', gerontologo: 'gerontólogo/a', guardia: 'guardia clínica', admin_plataforma: 'administración' };
 const PERMISOS_CONTACTO = z
   .object({ resumen_bienestar: z.boolean().default(false), avisos_medicacion: z.boolean().default(false), hoja_control: z.boolean().default(false) })
   .strict();

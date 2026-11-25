@@ -110,7 +110,7 @@ async function destinatarios(d: DependenciasEscalamiento, c: Consultable, e: Fil
     case 'equipo_asignado': {
       const r = await c.query<{ id: string; telefono_cifrado: Buffer | null }>(
         `SELECT cu.id, cu.telefono_cifrado FROM asignacion_personal a JOIN cuenta cu ON cu.id = a.cuenta_id
-          WHERE a.persona_id = $1 AND cu.activa AND cu.rol IN ('supervisor_clinico', 'enfermera_enlace', 'gerontologo')`,
+          WHERE a.persona_id = $1 AND cu.activa AND cu.rol IN ('supervisor_clinico', 'psiquiatra', 'enfermera_enlace', 'gerontologo')`,
         [e.persona_id],
       );
       for (const f of r.rows) agregar(f.telefono_cifrado, { cuentaId: f.id, paraGuardia: false });

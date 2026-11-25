@@ -7,6 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/marca/favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="/marca/favicon-64.png">
 <link rel="apple-touch-icon" href="/marca/emblema-180.png">
+<link rel="manifest" href="/manifest-panel.webmanifest">
 <title>Vincular-IA · Panel del equipo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -169,7 +170,36 @@
     .tabla .opcional { display: none; }
     .umbral { grid-template-columns: 1fr; }
   }
+  /* Celular: menú compacto en una franja deslizable y tablas que se desplazan en vez de cortarse. */
+  @media (max-width: 600px) {
+    nav { gap: 4px; padding: 10px 8px; flex-wrap: nowrap; overflow-x: auto; }
+    nav .marca { font-size: 17px; padding: 0 6px; flex: none; }
+    nav .marca span { display: none; }
+    nav button { flex: none; white-space: nowrap; padding: 8px 10px; }
+    nav .quien { flex: none; margin: 0 0 0 auto; padding: 0; }
+    nav .quien strong, nav .quien #quien-rol { display: none; }
+    main { padding: 14px 12px 60px; }
+    .tabla { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .cabeza { flex-wrap: wrap; gap: 10px; }
+    .pestanas { overflow-x: auto; flex-wrap: nowrap; }
+    .pestanas button { flex: none; }
+    .chequeo { grid-template-columns: 70px 1fr; }
+  }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  .chequeos { list-style: none; padding: 0; margin: 0; }
+  .chequeo { display: grid; grid-template-columns: 84px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid #E3E9E5; }
+  .chequeo:first-child { border-top: 0; }
+  .chequeo .marca { align-self: start; text-align: center; font-weight: 700; font-size: 14px; border-radius: 999px; padding: 4px 0; }
+  .chequeo[data-e="ok"] .marca { background: #DCEFE3; color: #1E5A47; }
+  .chequeo[data-e="falta"] .marca { background: #F8E1DD; color: #8A1C12; }
+  .chequeo[data-e="revisar"] .marca { background: #FBF0D9; color: #7A4A0E; }
+  .fila-tarea { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
+  .fila-tarea input[type=text] { flex: 1 1 220px; }
+  .enlace { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: #1E5A47; text-decoration: underline; cursor: pointer; }
+  .aviso-requisitos { border-left: 5px solid #A8641C; background: #FBF3E6; }
+  .casilla { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; margin: 6px 0; }
+  .casilla input { margin-top: 4px; width: auto; }
+  fieldset.criterios { border: 1px solid #D5DED8; border-radius: 10px; padding: 10px 14px; margin: 10px 0; }
 </style>
 </head>
 <body>
@@ -194,6 +224,7 @@
     <button type="button" data-vista="pacientes">Pacientes</button>
     <button type="button" data-vista="alertas" id="nav-alertas">Alertas <span class="contador oculto" id="contador-alertas"></span></button>
     <button type="button" data-vista="equipo" id="nav-equipo" class="oculto">Equipo</button>
+    <button type="button" data-vista="preparacion" id="nav-preparacion" class="oculto">Preparación del piloto</button>
     <div class="quien"><strong id="quien-nombre"></strong><span id="quien-rol"></span><button type="button" id="salir">Salir</button></div>
   </nav>
   <main id="contenido" tabindex="-1"></main>
@@ -212,7 +243,7 @@
   let token = leer();
   let yo = null;
 
-  const ROLES = { supervisor_clinico: 'Psicólogo/a supervisor/a', enfermera_enlace: 'Enfermera/o de enlace', gerontologo: 'Gerontólogo/a', guardia: 'Guardia clínica', admin_plataforma: 'Administración' };
+  const ROLES = { supervisor_clinico: 'Psicólogo/a supervisor/a', psiquiatra: 'Psiquiatra', enfermera_enlace: 'Enfermera/o de enlace', gerontologo: 'Gerontólogo/a', guardia: 'Guardia clínica', admin_plataforma: 'Administración' };
   const ESTADOS = { onboarding: 'En incorporación', activa: 'Activa', pausada: 'Pausada', baja: 'De baja' };
   const CAPAS = { biografica: 'Biografía', relacional: 'Personas importantes', salud: 'Salud', preferencias: 'Preferencias', episodica: 'Conversaciones' };
   const ORIGEN = { modelo: 'compañero', modelo_regenerado: 'compañero (corregido por el guardián)', respuesta_segura: 'respuesta segura', protocolo_emergencia: 'protocolo de emergencia', persona: 'persona' };
@@ -224,7 +255,8 @@
   const esAdmin = () => yo?.rol === 'admin_plataforma';
   const esGuardia = () => yo?.rol === 'guardia';
   const esClinico = () => yo && !esAdmin() && !esGuardia();
-  const esSupervisor = () => yo?.rol === 'supervisor_clinico';
+  // Responsables clínicos: editan el plan, leen transcripciones y registran la evaluación de ingreso.
+  const esSupervisor = () => yo?.rol === 'supervisor_clinico' || yo?.rol === 'psiquiatra';
 
   // ── Utilidades ──────────────────────────────────────────────────────────────────
   /** Crea un elemento. Los textos van siempre como textContent: nada de lo que dice una persona se interpreta como HTML. */
@@ -319,6 +351,7 @@
     $('quien-rol').textContent = ROLES[yo.rol] ?? yo.rol;
     $('nav-equipo').classList.toggle('oculto', !esAdmin());
     $('nav-alertas').classList.toggle('oculto', esAdmin());
+    $('nav-preparacion').classList.toggle('oculto', !(esAdmin() || esSupervisor()));
     contarAlertas();
     ir(esGuardia() ? 'alertas' : 'pacientes');
   }
@@ -330,7 +363,7 @@
     document.querySelectorAll('nav [aria-current]').forEach((b) => b.setAttribute('aria-current', 'page'));
     const c = $('contenido');
     c.replaceChildren(h('p', { class: 'suave' }, 'Cargando…'));
-    ({ pacientes: vistaPacientes, alertas: vistaAlertas, equipo: vistaEquipo, ficha: vistaFicha })[vista](c, arg).catch((e) => c.replaceChildren(h('p', { class: 'error' }, e.message)));
+    ({ pacientes: vistaPacientes, alertas: vistaAlertas, equipo: vistaEquipo, ficha: vistaFicha, preparacion: vistaPreparacion })[vista](c, arg).catch((e) => c.replaceChildren(h('p', { class: 'error' }, e.message)));
     c.focus({ preventScroll: true });
     window.scrollTo(0, 0);
   }
@@ -402,13 +435,41 @@
     });
   }
 
+  // ── Preparación del piloto ─────────────────────────────────────────────────────
+  async function vistaPreparacion(c) {
+    const { chequeos, personas, manuales } = await api('GET', '/api/preparacion');
+    const ICONO = { ok: 'Listo', falta: 'Falta', revisar: 'Revisar' };
+    const fila = (estado, titulo, detalle, extra = null) => h('li', { class: 'chequeo', dataset: { e: estado } },
+      h('span', { class: 'marca' }, ICONO[estado]), h('div', {}, h('strong', {}, titulo), h('br'), h('span', { class: 'suave' }, detalle), extra));
+    const automaticos = chequeos.map((x) => fila(x.estado, x.titulo, x.detalle));
+    const listaPersonas = personas.length ? h('ul', { class: 'lista-simple' }, personas.map((p) => h('li', {},
+      h('div', {}, h('button', { class: 'enlace', type: 'button', onclick: () => ir('ficha', p.id) }, p.nombre), h('br'),
+        h('span', { class: 'suave' }, `Falta: ${p.faltan.join(', ')}${p.bloqueos ? ` · intentó conversar ${p.bloqueos} vez/veces esta semana` : ''}`))))) : null;
+    const tareas = manuales.map((m) => {
+      const casilla = h('input', { type: 'checkbox', checked: m.completado, 'aria-label': m.titulo });
+      const nota = h('input', { type: 'text', value: m.nota, placeholder: 'Nota (p. ej. n.º de convenio o fecha)', maxlength: 500 });
+      const guardar = async () => { await api('PUT', `/api/preparacion/manual/${m.clave}`, { completado: casilla.checked, nota: nota.value }); vistaPreparacion(c); };
+      casilla.onchange = guardar; nota.onchange = guardar;
+      return fila(m.completado ? 'ok' : 'falta', m.titulo, m.ayuda,
+        h('div', { class: 'fila-tarea' }, h('label', { class: 'casilla' }, casilla, ' Completado'), nota,
+          m.actualizadoEn ? h('span', { class: 'suave' }, `${m.por ?? '—'}, ${fecha(m.actualizadoEn)}`) : null));
+    });
+    const listos = chequeos.filter((x) => x.estado === 'ok').length + manuales.filter((m) => m.completado).length;
+    const total = chequeos.length + manuales.length;
+    c.replaceChildren(
+      h('div', { class: 'cabeza' }, h('div', {}, h('h1', {}, 'Preparación del piloto'), h('p', { class: 'suave' }, `${listos} de ${total} puntos listos. Todo en "Listo" antes de entregar tablets a personas reales.`))),
+      h('div', { class: 'bloque' }, h('h2', {}, 'Lo que el sistema verifica solo'), h('ul', { class: 'chequeos' }, automaticos), listaPersonas),
+      h('div', { class: 'bloque' }, h('h2', {}, 'Acuerdos legales y clínicos'), h('p', { class: 'suave' }, 'El sistema no puede comprobarlos: márquelos cuando estén firmados o validados, con una nota.'), h('ul', { class: 'chequeos' }, tareas)));
+  }
+
   // ── Ficha ───────────────────────────────────────────────────────────────────────
   async function vistaFicha(c, id) {
     const f = await api('GET', `/api/personas/${id}/ficha`);
     const pestanas = esAdmin()
-      ? [['datos', 'Datos'], ['contactos', 'Contactos'], ['tablet', 'Tablet'], ['equipo', 'Equipo'], ['consentimiento', 'Consentimiento']]
-      : [['resumen', 'Resumen'], ['evolucion', 'Evolución'], ['plan', 'Plan terapéutico'], ['salud', 'Medicación y citas'], ['memoria', 'Memoria'], ['datos', 'Contactos y datos']];
+      ? [['datos', 'Datos'], ['contactos', 'Contactos'], ['tablet', 'Tablet'], ['equipo', 'Equipo'], ['consentimiento', 'Consentimiento'], ['derechos', 'Derechos sobre los datos']]
+      : [['resumen', 'Resumen'], ['ingreso', 'Ingreso'], ['evolucion', 'Evolución'], ['plan', 'Plan terapéutico'], ['salud', 'Medicación y citas'], ['memoria', 'Memoria'], ['datos', 'Contactos y datos']];
     const zona = h('div');
+    const avisoRequisitos = h('div', { class: 'bloque aviso-requisitos oculto', role: 'status' });
     const barra = h('div', { class: 'pestanas', role: 'tablist' });
     const abrir = (clave) => {
       barra.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.p === clave)));
@@ -424,8 +485,17 @@
       h('div', { class: 'cabeza' },
         h('div', {}, h('h1', {}, f.nombre), h('div', { class: 'datos-cabeza' }, h('span', { class: 'estado', dataset: { e: f.estado } }, ESTADOS[f.estado]), ' ', datos)),
         h('a', { class: 'boton sec', href: `/companero?persona=${encodeURIComponent(f.id)}` }, f.companero ? 'Editar compañero' : 'Diseñar compañero')),
-      barra, zona);
+      avisoRequisitos, barra, zona);
     abrir(pestanas[0][0]);
+    // Qué falta para que la persona pueda conversar (consentimiento, evaluación de ingreso, estado).
+    api('GET', `/api/personas/${id}/requisitos`).then(({ faltan }) => {
+      if (!faltan.length) return;
+      const que = { consentimiento: esAdmin() ? 'registrar su consentimiento vigente (pestaña Consentimiento)' : 'que la administración registre su consentimiento vigente',
+        evaluacion: esAdmin() ? 'que su psiquiatra o psicólogo/a supervisor/a registre la evaluación de ingreso' : 'registrar la evaluación clínica de ingreso (pestaña Ingreso)',
+        estado: 'reactivarla: está pausada o dada de baja' };
+      avisoRequisitos.replaceChildren(h('strong', {}, 'Todavía no puede conversar con su compañero. '), `Falta: ${faltan.map((k) => que[k]).join('; ')}.`);
+      avisoRequisitos.classList.remove('oculto');
+    }).catch(() => {});
   }
 
   const PESTANAS = {
@@ -474,7 +544,7 @@
     async equipo(z, f) {
       const { cuentas } = await api('GET', '/api/cuentas');
       const asignados = new Set(f.equipo.map((x) => x.id));
-      const disponibles = cuentas.filter((x) => x.activa && !asignados.has(x.id) && ['supervisor_clinico', 'enfermera_enlace', 'gerontologo'].includes(x.rol));
+      const disponibles = cuentas.filter((x) => x.activa && !asignados.has(x.id) && ['supervisor_clinico', 'psiquiatra', 'enfermera_enlace', 'gerontologo'].includes(x.rol));
       const sel = h('select', { id: 'eq-cuenta', 'aria-label': 'Profesional' }, disponibles.map((x) => h('option', { value: x.id }, `${x.nombre} · ${ROLES[x.rol]}`)));
       const error = h('p', { class: 'error', role: 'alert' });
       z.replaceChildren(h('div', { class: 'bloque' }, h('h2', {}, 'Equipo asignado'),
@@ -500,7 +570,78 @@
         estado, items.length ? h('ul', { class: 'lista-simple' }, items) : null));
     },
 
+    async derechos(z, f) {
+      const error = h('p', { class: 'error', role: 'alert' });
+      const exportar = () => dialogo('Exportar todos los datos', [
+        h('p', {}, 'Genera un archivo con todos los datos de la persona (incluidos los de salud), para responder una solicitud de acceso o portabilidad. Queda registrado en la auditoría.'),
+        ...campo('ex-motivo', 'Motivo', { required: true, minlength: 10, placeholder: 'Solicitud de acceso de la persona del 25-11' }),
+      ], 'Exportar', async () => {
+        const r = await fetch(`/api/personas/${f.id}/exportar-todo`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ motivo: $('ex-motivo').value }) });
+        if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detalle?.[0]?.mensaje ?? d.error ?? `Error ${r.status}`); }
+        const url = URL.createObjectURL(await r.blob());
+        const a = h('a', { href: url, download: `vincular-datos-${f.id.slice(0, 8)}.json` });
+        document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      });
+      const suprimir = () => dialogo('Suprimir todos los datos', [
+        h('p', { class: 'aviso' }, `Se borrarán de forma definitiva todos los datos de ${f.nombre}: conversaciones, memoria, informes, plan, medicación, contactos, cuentas de su familia y su tablet. No se puede deshacer.`),
+        h('p', { class: 'suave' }, 'Úselo solo ante una solicitud de supresión de la persona o su representante. Antes, considere exportar sus datos si los pidió.'),
+        ...campo('su-motivo', 'Motivo', { required: true, minlength: 10, placeholder: 'Solicitud de supresión de la persona del 25-11' }),
+        ...campo('su-conf', 'Escriba SUPRIMIR para confirmar', { required: true, autocomplete: 'off' }),
+      ], 'Suprimir definitivamente', async () => {
+        await api('POST', `/api/personas/${f.id}/suprimir`, { confirmacion: $('su-conf').value.trim(), motivo: $('su-motivo').value });
+        ir('pacientes');
+      });
+      z.replaceChildren(h('div', { class: 'bloque' },
+        h('h2', {}, 'Derechos sobre los datos'),
+        h('p', { class: 'suave' }, 'La persona puede pedir acceso, portabilidad, rectificación o supresión de sus datos (Ley 21.719). La rectificación se hace en cada sección; aquí, el acceso y la supresión.'),
+        h('div', { class: 'acciones' }, h('button', { class: 'boton sec', type: 'button', onclick: exportar }, 'Exportar todos los datos'), h('button', { class: 'boton peligro', type: 'button', onclick: suprimir }, 'Suprimir todos los datos')),
+        error));
+    },
+
     // Clínico
+    async ingreso(z, f) {
+      const [{ evaluaciones }, { criterios }] = await Promise.all([api('GET', `/api/personas/${f.id}/evaluaciones`), api('GET', '/api/criterios-exclusion')]);
+      const RESULTADO = { apto: 'Apto', apto_con_resguardos: 'Apto con resguardos', no_apto: 'No apto' };
+      const ultima = evaluaciones[0];
+      const vencida = ultima && new Date(ultima.revisarAntesDe) < new Date(new Date().toDateString());
+      const estado = !ultima ? h('p', { class: 'aviso' }, 'Sin evaluación de ingreso: la persona no puede conversar con su compañero hasta que se registre.')
+        : ultima.resultado === 'no_apto' ? h('p', { class: 'aviso' }, `No apto (${fecha(ultima.creadoEn)}): la persona no conversa con el compañero.`)
+        : vencida ? h('p', { class: 'aviso' }, `La evaluación venció el ${fecha(ultima.revisarAntesDe)}. Debe revisarse para que siga conversando.`)
+        : h('p', {}, `${RESULTADO[ultima.resultado]} desde el ${fecha(ultima.creadoEn)}. Revisar antes del ${fecha(ultima.revisarAntesDe)}.`);
+      const historial = evaluaciones.map((e) => {
+        const presentes = criterios.filter((c) => e.criterios[c.clave]).map((c) => c.texto);
+        return h('li', {}, h('div', {}, h('strong', {}, RESULTADO[e.resultado]), ` · ${fecha(e.creadoEn)} · ${e.autor} (${e.rol === 'psiquiatra' ? 'psiquiatra' : 'psicólogo/a supervisor/a'})`, h('br'),
+          h('span', { class: 'suave' }, presentes.length ? `Criterios presentes: ${presentes.join('; ')}` : 'Sin criterios de exclusión presentes'),
+          e.notas ? h('p', { style: 'margin:6px 0 0' }, e.notas) : null));
+      });
+      const registrar = () => {
+        const marcas = criterios.map((c) => h('label', { class: 'casilla' }, h('input', { type: 'checkbox', name: 'crit', value: c.clave }), ` ${c.texto}`));
+        dialogo('Evaluación clínica de ingreso', [
+          h('p', { class: 'suave' }, 'Marque los criterios de exclusión presentes. Con alguno marcado, el resultado debe ser "apto con resguardos" (con indicaciones) o "no apto".'),
+          h('fieldset', { class: 'criterios' }, h('legend', {}, 'Criterios de exclusión presentes'), ...marcas),
+          ...selector('ev-res', 'Resultado', RESULTADO, 'apto'),
+          ...campo('ev-notas', 'Indicaciones o resguardos para el equipo (se guardan cifradas)', { multilinea: true, rows: 3, maxlength: 2000 }),
+          ...campo('ev-rev', 'Revisar antes de (vacío: en 6 meses)', { type: 'date' }),
+          h('label', { class: 'casilla' }, h('input', { type: 'checkbox', id: 'ev-revise', required: true }), ' Revisé todos los criterios con la persona y su historia clínica'),
+        ], 'Registrar evaluación', async (form) => {
+          const marcados = new Set([...form.querySelectorAll('input[name=crit]:checked')].map((x) => x.value));
+          await api('POST', `/api/personas/${f.id}/evaluaciones`, {
+            resultado: $('ev-res').value,
+            criterios: Object.fromEntries(criterios.map((c) => [c.clave, marcados.has(c.clave)])),
+            notas: $('ev-notas').value,
+            ...($('ev-rev').value ? { revisarAntesDe: $('ev-rev').value } : {}),
+          });
+          ir('ficha', f.id);
+        }, true);
+      };
+      z.replaceChildren(h('div', { class: 'bloque' },
+        h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Evaluación clínica de ingreso'), esSupervisor() ? h('button', { class: 'boton', type: 'button', onclick: registrar }, ultima ? 'Nueva evaluación' : 'Registrar evaluación') : null),
+        estado,
+        h('p', { class: 'suave' }, 'Antes de conversar con el compañero, un/a psiquiatra o psicólogo/a supervisor/a asignado/a revisa los criterios de exclusión. Cada evaluación queda guardada.'),
+        historial.length ? h('ul', { class: 'lista-simple' }, historial) : null));
+    },
+
     async resumen(z, f) {
       const [{ sesiones }, { alertas }, { propuestas }] = await Promise.all([api('GET', `/api/personas/${f.id}/sesiones`), api('GET', '/api/alertas?pendientes=false'), api('GET', `/api/personas/${f.id}/propuestas`)]);
       const propias = alertas.filter((a) => a.persona_id === f.id);
