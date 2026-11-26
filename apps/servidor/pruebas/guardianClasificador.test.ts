@@ -33,3 +33,24 @@ describe('guardián: categorías del clasificador', () => {
     expect(INSTRUCCIONES_GUARDIAN).toMatch(/me alegra/);
   });
 });
+
+describe('historial para el modelo', () => {
+  it('no le muestra las frases genéricas de respaldo, pero sí los avisos con contenido', async () => {
+    const { mensajesParaElModelo } = await import('../src/conversacion/orquestador.ts');
+    const { respuestaSeguraGeneral, respuestaSeguraPara } = await import('@vincular/seguridad-clinica');
+    const aviso = respuestaSeguraPara(2, [], { samu: '131', prevencionSuicidio: '*4141' });
+    const m = mensajesParaElModelo([
+      { hablante: 'persona', texto: 'Hola' },
+      { hablante: 'agente', texto: respuestaSeguraGeneral('usted'), origen: 'respuesta_segura' },
+      { hablante: 'persona', texto: 'Le decía que hoy hice pan' },
+      { hablante: 'agente', texto: aviso, origen: 'respuesta_segura' },
+      { hablante: 'persona', texto: 'Bueno' },
+    ]);
+    expect(m).toEqual([
+      { rol: 'usuario', texto: 'Hola\nLe decía que hoy hice pan' },
+      { rol: 'asistente', texto: aviso },
+      { rol: 'usuario', texto: 'Bueno' },
+    ]);
+    expect(JSON.stringify(m)).not.toContain('enredaron');
+  });
+});
