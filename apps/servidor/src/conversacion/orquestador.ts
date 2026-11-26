@@ -12,7 +12,7 @@ import {
 import type { Bd } from '../db/conexion.ts';
 import type { Cifrador } from '../seguridad/cifrado.ts';
 import { clasificarRiesgo, type ResultadoClasificador } from './clasificadorRiesgo.ts';
-import { revisarRespuesta } from './guardian.ts';
+import { revisarRespuesta, soloProblemasDeTono } from './guardian.ts';
 import { ESPECIFICACIONES, ejecutarHerramienta } from './herramientas.ts';
 import { construirInstrucciones, correccionParaRegenerar } from './instrucciones.ts';
 import { llamarModelo, type AmbitoUso } from './llamadas.ts';
@@ -265,6 +265,10 @@ export class Orquestador {
       });
       if (rev.aprobada) return { texto, origen: intento === 1 ? 'modelo' : 'modelo_regenerado' };
 
+      if (intento === 2 && rev.etapa !== 'proveedor' && soloProblemasDeTono(rev.problemas)) {
+        await this.registrarIntervencion(e, intento, rev.etapa ?? 'clasificador', [...new Set(rev.problemas.map((p) => p.categoria))], rev.problemas.map((p) => p.reglaId), texto, 'aceptada_con_observacion');
+        return { texto, origen: 'modelo_regenerado' };
+      }
       const ultimo = intento === 2 || rev.etapa === 'proveedor';
       await this.registrarIntervencion(
         e,
@@ -330,7 +334,7 @@ export class Orquestador {
     categorias: string[],
     reglas: string[],
     textoRechazado: string | null,
-    accion: 'regenerar' | 'respuesta_segura',
+    accion: 'regenerar' | 'respuesta_segura' | 'aceptada_con_observacion',
   ): Promise<void> {
     await this.d.bd.query(
       `INSERT INTO intervencion_guardian (persona_id, sesion_id, turno_persona_id, intento, etapa, categorias, reglas, texto_rechazado_cifrado, accion)
