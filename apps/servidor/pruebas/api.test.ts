@@ -61,6 +61,24 @@ describe('altas', () => {
     expect(r.rows[0]!.token_hash.toString('base64url')).not.toBe(e.tokens.dispositivo);
   });
 
+  it('al conectar un equipo entrega un QR con el código solo en el fragmento del enlace', async () => {
+    const r = await pedir<{ token: string; enlace: string; qr: string }>(e.f, 'POST', `/api/personas/${e.ids.persona}/dispositivos`, e.tokens.admin, {
+      nombre: 'Celular de prueba',
+      urlBase: 'https://vincular.ejemplo.cl/panel',
+    });
+    expect(r.estado).toBe(201);
+    expect(r.datos.enlace).toBe(`https://vincular.ejemplo.cl/tablet#codigo=${r.datos.token}`);
+    expect(r.datos.qr.startsWith('data:image/png;base64,')).toBe(true);
+    // El código sirve para conversar como la persona.
+    expect((await pedir(e.f, 'GET', '/api/mi-perfil-companero', r.datos.token)).estado).not.toBe(401);
+    // Sin urlBase sigue funcionando como antes, y no acepta direcciones que no sean web.
+    const sin = await pedir<{ qr: string | null }>(e.f, 'POST', `/api/personas/${e.ids.persona}/dispositivos`, e.tokens.admin, { nombre: 'Tablet sin QR' });
+    expect(sin.estado).toBe(201);
+    expect(sin.datos.qr).toBeNull();
+    const mala = await pedir(e.f, 'POST', `/api/personas/${e.ids.persona}/dispositivos`, e.tokens.admin, { nombre: 'X equipo', urlBase: 'javascript:alert(1)' });
+    expect(mala.estado).toBe(400);
+  });
+
   it('no se puede asignar a la guardia ni al administrador como equipo de una persona', async () => {
     const g = await e.owner.query<{ id: string }>(`SELECT id FROM cuenta WHERE rol = 'guardia' LIMIT 1`);
     const r = await pedir(e.f, 'POST', `/api/personas/${e.ids.persona}/asignaciones`, e.tokens.admin, { cuentaId: g.rows[0]!.id });

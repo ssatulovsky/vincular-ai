@@ -10,6 +10,7 @@ import { exigirPermiso } from '../../seguridad/permisos.ts';
 import { nuevoToken } from '../../seguridad/tokens.ts';
 import { ErrorHttp, exigirActor, type Aplicacion } from '../servidor.ts';
 import { ErrorAvatares, exigirAvatarPropio } from '../../companero/avatares.ts';
+import QRCode from 'qrcode';
 
 const uuid = z.string().uuid();
 const ROLES = ['supervisor_clinico', 'psiquiatra', 'enfermera_enlace', 'gerontologo', 'guardia', 'admin_plataforma'] as const;
@@ -104,7 +105,13 @@ export const rutasAdministracion =
       const actor = exigirActor(req);
       const { id } = z.object({ id: uuid }).parse(req.params);
       await exigirPermiso(app.bd, actor, 'dispositivo.crear', id);
-      const b = z.object({ nombre: z.string().trim().min(2).max(80) }).parse(req.body);
+      const b = z
+        .object({
+          nombre: z.string().trim().min(2).max(80),
+          // Dirección del sitio tal como la ve el panel (location.origin), para armar el enlace del QR.
+          urlBase: z.string().url().max(200).refine((u) => /^https?:\/\//.test(u)).optional(),
+        })
+        .parse(req.body);
       const { token, hash } = nuevoToken();
       const dispositivoId = await transaccion(app.bd, async (c) => {
         const r = await c.query<{ id: string }>('INSERT INTO dispositivo (persona_id, nombre, token_hash, creado_por) VALUES ($1, $2, $3, $4) RETURNING id', [
@@ -116,7 +123,11 @@ export const rutasAdministracion =
         await auditar(c, actor, { accion: 'dispositivo.crear', recursoTipo: 'dispositivo', recursoId: r.rows[0]!.id, personaId: id });
         return r.rows[0]!.id;
       });
-      return reply.code(201).send({ id: dispositivoId, token });
+      // El código va en el fragmento (#), que el navegador nunca envía al servidor ni deja en registros.
+      // El QR se muestra solo en la pantalla del panel, para escanearlo en persona.
+      const enlace = b.urlBase ? `${new URL(b.urlBase).origin}/tablet#codigo=${token}` : null;
+      const qr = enlace ? await QRCode.toDataURL(enlace, { errorCorrectionLevel: 'M', margin: 2, width: 480 }) : null;
+      return reply.code(201).send({ id: dispositivoId, token, enlace, qr });
     });
 
     f.post('/api/personas/:id/asignaciones', async (req, reply) => {

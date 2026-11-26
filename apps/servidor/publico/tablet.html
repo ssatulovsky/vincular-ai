@@ -166,8 +166,8 @@
 
 <section class="configurar oculto" id="configurar" aria-labelledby="titulo-config">
   <img src="/marca/emblema-192.png" width="120" height="120" alt="Vincular-IA" style="border-radius:22%">
-  <h1 id="titulo-config">Configurar esta tablet</h1>
-  <p>Pegue el código del dispositivo que entregó el equipo de Vincular-IA. Se guarda solo en esta tablet.</p>
+  <h1 id="titulo-config">Conectar este equipo</h1>
+  <p>Escanee con la cámara el código QR que le muestra el equipo de Vincular-IA, o pegue aquí el código. Se guarda solo en este equipo.</p>
   <input type="password" id="token" autocomplete="off" aria-label="Código del dispositivo">
   <button id="guardar-token">Guardar y empezar</button>
   <p class="error" id="error-config" role="alert"></p>
@@ -865,6 +865,14 @@
     conectar();
   });
 
+  // Enlace del QR del panel: /tablet#codigo=... El fragmento no llega al servidor; se guarda y se borra de la barra.
+  {
+    const m = /(?:^#|&)codigo=([A-Za-z0-9_-]{20,})/.exec(location.hash);
+    if (m) {
+      guardarToken(m[1]);
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  }
   try { programarLocales(JSON.parse(localStorage.getItem('vincular.agenda')) || []); } catch {}
   conectar();
 })();

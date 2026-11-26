@@ -117,6 +117,7 @@
   .lista-simple { list-style: none; padding: 0; margin: 0; }
   .lista-simple li { padding: 10px 0; border-bottom: 1px solid var(--linea); display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
   .lista-simple li:last-child { border-bottom: 0; }
+  .qr { display: block; width: 260px; max-width: 100%; height: auto; margin: 8px auto 12px; background: #fff; border-radius: 8px; }
   .codigo { font-size: 22px; font-weight: 700; letter-spacing: .5px; background: var(--botella-claro); padding: 12px 14px; border-radius: 8px; word-break: break-all; user-select: all; }
   .umbral { display: grid; grid-template-columns: 2fr 110px 2fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
   .turno { padding: 10px 12px; border-radius: 8px; margin: 6px 0; max-width: 80ch; }
@@ -466,7 +467,7 @@
   async function vistaFicha(c, id) {
     const f = await api('GET', `/api/personas/${id}/ficha`);
     const pestanas = esAdmin()
-      ? [['datos', 'Datos'], ['contactos', 'Contactos'], ['tablet', 'Tablet'], ['equipo', 'Equipo'], ['consentimiento', 'Consentimiento'], ['derechos', 'Derechos sobre los datos']]
+      ? [['datos', 'Datos'], ['contactos', 'Contactos'], ['tablet', 'Tablet o celular'], ['equipo', 'Equipo'], ['consentimiento', 'Consentimiento'], ['derechos', 'Derechos sobre los datos']]
       : [['resumen', 'Resumen'], ['ingreso', 'Ingreso'], ['evolucion', 'Evolución'], ['plan', 'Plan terapéutico'], ['salud', 'Medicación y citas'], ['memoria', 'Memoria'], ['datos', 'Contactos y datos']];
     const zona = h('div');
     const avisoRequisitos = h('div', { class: 'bloque aviso-requisitos oculto', role: 'status' });
@@ -536,9 +537,9 @@
         h('div', {}, h('strong', {}, d.nombre), h('br'), h('span', { class: 'suave' }, d.revocadoEn ? `Revocada el ${fecha(d.revocadoEn)}` : `Creada el ${fecha(d.creadoEn)} · último uso ${hace(d.ultimoUsoEn)}`)),
         d.revocadoEn ? null : h('button', { class: 'boton peligro chico', type: 'button', onclick: () => revocar(f, d) }, 'Revocar')));
       z.replaceChildren(h('div', { class: 'bloque' },
-        h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Tablet'), h('button', { class: 'boton', type: 'button', onclick: () => nuevaTablet(f) }, activas.length ? 'Crear otro código' : 'Crear código de la tablet')),
-        h('p', { class: 'suave' }, 'El código se muestra una sola vez. Se ingresa en la tablet, en la página /tablet. Si se pierde la tablet, revóquela: deja de funcionar de inmediato.'),
-        items.length ? h('ul', { class: 'lista-simple' }, items) : h('div', { class: 'vacio' }, 'Todavía no tiene tablet.')));
+        h('div', { class: 'cabeza' }, h('h2', { style: 'margin:0' }, 'Tablet o celular'), h('button', { class: 'boton', type: 'button', onclick: () => nuevaTablet(f) }, activas.length ? 'Conectar otro equipo' : 'Conectar tablet o celular')),
+        h('p', { class: 'suave' }, 'Genera un código QR que se escanea con la cámara del equipo de la persona, en persona. El código se muestra una sola vez. Si se pierde el equipo, revóquelo: deja de funcionar de inmediato.'),
+        items.length ? h('ul', { class: 'lista-simple' }, items) : h('div', { class: 'vacio' }, 'Todavía no tiene tablet ni celular conectado.')));
     },
 
     async equipo(z, f) {
@@ -884,11 +885,15 @@
     ir('ficha', f.id);
   }
   function nuevaTablet(f) {
-    dialogo('Crear código de la tablet', [...campo('t-nombre', 'Nombre de la tablet', { value: `Tablet de ${f.nombre.split(' ')[0]}`, required: true })], 'Crear código', async (form) => {
-      const r = await api('POST', `/api/personas/${f.id}/dispositivos`, { nombre: $('t-nombre').value });
-      form.replaceChildren(h('h2', {}, 'Código de la tablet'),
-        h('p', {}, 'Anótelo ahora: no se vuelve a mostrar. En la tablet, abra la página /tablet e ingréselo.'),
+    dialogo('Conectar tablet o celular', [...campo('t-nombre', 'Nombre del equipo', { value: `Celular de ${f.nombre.split(' ')[0]}`, required: true })], 'Generar código', async (form) => {
+      const r = await api('POST', `/api/personas/${f.id}/dispositivos`, { nombre: $('t-nombre').value, urlBase: location.origin });
+      const qr = r.qr ? h('img', { class: 'qr', src: r.qr, alt: 'Código QR para conectar el equipo' }) : null;
+      form.replaceChildren(h('h2', {}, 'Conectar el equipo'),
+        h('p', {}, 'Con la persona presente: abra la cámara del celular o tablet, apunte a este código y toque el enlace que aparece. Queda conectado.'),
+        qr,
+        h('p', { class: 'suave' }, 'Si la cámara no lee QR, abra la página /tablet en el equipo e ingrese este código:'),
         h('div', { class: 'codigo' }, r.token),
+        h('p', { class: 'suave' }, 'No lo envíe por WhatsApp ni correo: quien lo tenga puede conversar como la persona. Se muestra una sola vez.'),
         h('div', { class: 'acciones' }, h('button', { class: 'boton', type: 'button', onclick: () => navigator.clipboard?.writeText(r.token) }, 'Copiar código'), h('button', { class: 'boton sec', value: 'cancelar' }, 'Listo')));
       $('dialogo').addEventListener('close', () => ir('ficha', f.id), { once: true });
       return false;
