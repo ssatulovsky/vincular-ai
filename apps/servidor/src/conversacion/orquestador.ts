@@ -5,6 +5,7 @@ import {
   nivelMayor,
   recordatorioEmergencia,
   respuestaSeguraPara,
+  respuestaSeguraGeneral,
   respuestaSinServicio,
   type ContactosEmergencia,
   type NivelRiesgo,
@@ -57,7 +58,7 @@ const MAX_PASOS_HERRAMIENTAS = 4;
 const MAX_CARACTERES_TURNO = 4000;
 const CATEGORIAS_MEDICAS = ['dolor_toracico', 'signos_acv', 'dificultad_respiratoria', 'caida_con_lesion'];
 
-interface EstadoTurno {
+export interface EstadoTurno {
   sesionId: string;
   personaId: string;
   turnoPersonaId: string;
@@ -65,7 +66,7 @@ interface EstadoTurno {
   texto: string;
   ctx: ContextoPersona;
   plan: PlanTerapeutico | null;
-  historial: Array<{ hablante: 'persona' | 'agente'; texto: string }>;
+  historial: Array<{ hablante: 'persona' | 'agente'; texto: string; origen?: OrigenTurno }>;
   ambito: AmbitoUso;
   reporteAgente: { nivel: NivelRiesgo; motivo: string } | null;
   salud: ContextoSalud;
@@ -145,7 +146,7 @@ export class Orquestador {
       texto,
       ctx,
       plan,
-      historial: turnos.filter((t) => t.id !== turnoPersonaId).map((t) => ({ hablante: t.hablante, texto: t.texto })),
+      historial: turnos.filter((t) => t.id !== turnoPersonaId).map((t) => ({ hablante: t.hablante, texto: t.texto, origen: t.origen })),
       ambito: { personaId, sesionId },
       reporteAgente: null,
       salud,
@@ -288,9 +289,8 @@ export class Orquestador {
 
   /** Llamada al modelo de conversación con el bucle de herramientas. */
   private async generar(e: EstadoTurno, instrucciones: string, tarea: 'conversacion' | 'conversacion_respaldo'): Promise<string> {
-    const mensajes: MensajeModelo[] = e.historial.map((t) => (t.hablante === 'persona' ? { rol: 'usuario', texto: t.texto } : { rol: 'asistente', texto: t.texto }));
+    const mensajes = mensajesParaElModelo([...e.historial, { hablante: 'persona', texto: e.texto }]);
     if (mensajes[0]?.rol === 'asistente') mensajes.unshift({ rol: 'usuario', texto: '(La conversación la inició el compañero.)' });
-    mensajes.push({ rol: 'usuario', texto: e.texto });
 
     const ambitoHerramientas = {
       bd: this.d.bd,
@@ -414,4 +414,27 @@ async function conPlazo<T>(p: Promise<T>, ms: number): Promise<T | null> {
   } finally {
     clearTimeout(temporizador);
   }
+}
+
+const RESPALDOS_GENERICOS = new Set([respuestaSeguraGeneral('usted'), respuestaSeguraGeneral('tu'), respuestaSinServicio('usted'), respuestaSinServicio('tu')]);
+
+/**
+ * Historial para el modelo de conversación. Las frases genéricas de respaldo ("se me enredaron
+ * las ideas") no se le muestran: si las ve, las imita y la persona las escucha una y otra vez.
+ * Se mantienen las respuestas seguras con contenido (aviso de nivel 2, protocolo de emergencia),
+ * porque el modelo debe saber lo que ya se le dijo a la persona. Los mensajes seguidos de la
+ * persona que quedan juntos se unen en uno.
+ */
+export function mensajesParaElModelo(historial: EstadoTurno['historial']): MensajeModelo[] {
+  const mensajes: MensajeModelo[] = [];
+  for (const t of historial) {
+    if (t.hablante === 'agente' && t.origen === 'respuesta_segura' && RESPALDOS_GENERICOS.has(t.texto)) continue;
+    const ultimo = mensajes.at(-1);
+    if (t.hablante === 'persona' && ultimo?.rol === 'usuario' && 'texto' in ultimo && !('llamadas' in ultimo)) {
+      mensajes[mensajes.length - 1] = { rol: 'usuario', texto: `${ultimo.texto}\n${t.texto}` };
+      continue;
+    }
+    mensajes.push(t.hablante === 'persona' ? { rol: 'usuario', texto: t.texto } : { rol: 'asistente', texto: t.texto });
+  }
+  return mensajes;
 }
